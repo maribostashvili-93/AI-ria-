@@ -36,4 +36,70 @@ describe("figma adapter", () => {
     expect(diff.matchedColors).toContain("#0ea5e9");
     expect(diff.missingRadiiInCode).toContain("12px");
 
-    
+    const markdown = diffToMarkdown(diff, tokens.source);
+    expect(markdown).toContain("Figma");
+    expect(markdown).toContain("Border Radius");
+  });
+
+  it("imports cursor-talk-to-figma-mcp wrapped node output without a token", async () => {
+    const tmp = path.join(__dirname, "..", "examples", "figma-mcp-export.json");
+    const payload = {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            id: "0:1",
+            name: "Landing Frame",
+            type: "FRAME",
+            fills: [{ type: "SOLID", color: { r: 0.486, g: 0.227, b: 0.929 } }],
+            cornerRadius: 12,
+            itemSpacing: 16,
+            children: [
+              {
+                id: "1:2",
+                name: "Hero Title",
+                type: "TEXT",
+                characters: "Hello",
+                style: { fontFamily: "Inter", fontSize: 32 },
+              },
+              {
+                id: "1:3",
+                name: "Button/Primary",
+                type: "COMPONENT",
+                fills: [{ type: "SOLID", color: { r: 0.231, g: 0.51, b: 0.965 } }],
+                children: [],
+              },
+            ],
+          }),
+        },
+      ],
+    };
+
+    await fs.writeFile(tmp, JSON.stringify(payload, null, 2), "utf8");
+    try {
+      const { tokens, components } = await importFigmaData(tmp);
+      expect(tokens.colors.length).toBeGreaterThan(0);
+      expect(tokens.typography.some((item) => item.fontFamily === "Inter" && item.fontSize === 32)).toBe(true);
+      expect(tokens.radii.map((item) => item.value)).toContain("12px");
+      expect(tokens.spacing.map((item) => item.value)).toContain("16px");
+      expect(components.map((item) => item.name)).toContain("Button/Primary");
+    } finally {
+      await fs.rm(tmp, { force: true });
+    }
+  });
+
+  it("extracts a file key from a Figma link and generates workflow hints", () => {
+    const parsed = parseFigmaLink("https://www.figma.com/design/xRu6Y23NtPIMWgtRAMcriV/Introduction-to-css?node-id=0-1&p=f&t=abc-0");
+    expect(parsed.fileKey).toBe("xRu6Y23NtPIMWgtRAMcriV");
+    expect(parsed.linkType).toBe("design");
+
+    const guide = buildFigmaWorkflowGuide("C:\\project", parsed.url);
+    expect(guide.tokenCommand).toContain("--file xRu6Y23NtPIMWgtRAMcriV");
+    expect(guide.mcpImportCommand).toContain("--mcp-export");
+
+    const markdown = figmaWorkflowGuideToMarkdown(guide);
+    expect(markdown).toContain("File key: xRu6Y23NtPIMWgtRAMcriV");
+    expect(markdown).toContain("Direct Figma API");
+    expect(markdown).toContain("Tokenless MCP / Plugin Export");
+  });
+});
