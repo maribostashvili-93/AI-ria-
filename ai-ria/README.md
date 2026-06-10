@@ -92,6 +92,9 @@ The agent gets the whole project's knowledge for a few hundred tokens instead of
 | v0.2 Figma Import | `ria figma import <path> <tokens.json>` | `figma/figma-tokens.json`, `figma/FIGMA_SUMMARY.md` + merged into `design-memory.json` (colors, typography, spacing, radius, shadows, components) |
 | v0.2 Figma Codegen | `ria figma generate-code <path>` | `figma/generated/` — draft HTML/CSS + Tailwind suggestions (starter code, not production) |
 | v0.2 DESIGN.md Bridge | `ria design-md import <path> <DESIGN.md>` / `ria design-pack <path>` | rules + tokens into design memory; `design/DESIGN_PACK.md` for UI agents |
+| v0.1 Token Accounting | `ria tokens report <path>` | `tokens/TOKEN_REPORT.md`, `tokens/token-summary.json` — raw vs compressed vs saved tokens, by agent/task/pack, budget warnings |
+| v0.1 Token Accounting | `ria tokens agent <path> <name>` / `ria tokens compare <path>` | per-agent usage; pack sizes vs every agent's preferred budget |
+| v0.1 Token Accounting | `ria tokens budget <path> --agent claude --limit 200000` | `tokens/budgets.json` — custom token limits per agent |
 | v0.1 Repository Scanner | `ria scan <path>` | `repo-map.json`, `repo-summary.md` — framework (Next.js/React/Vue/Astro/…), package manager, routes, components, styles, configs |
 | v0.1 Repo Brain | `ria analyze <path>` | `ARCHITECTURE.md`, `FEATURES.md`, `AGENTS.md`, `AGENT_CONTEXT.md` |
 | v0.1 Context Compression | `ria compress <path>` | `context-pack.md/.json` — ig

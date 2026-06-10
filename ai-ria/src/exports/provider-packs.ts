@@ -73,5 +73,17 @@ export async function buildProviderPack(root: string, provider: Provider): Promi
 
   const markdown = headerText + included.join("") + footer;
   const file = await writeRiaFile(root, `exports/${profile.file}`, markdown);
-  return { provider, file, tokens: estimateTokens(markdown), budget: profile.budget, removedSections };
+  const tokens = estimateTokens(markdown);
+
+  // Token accounting: raw baseline = what the agent would have read without AI RIA.
+  let rawTokens = data.tokens;
+  try {
+    const { readRiaFile } = await import("../core/paths.js");
+    const report = await readRiaFile(root, "context/token-report.json");
+    if (report) rawTokens = Math.max(rawTokens, Number(JSON.parse(report).rawTokens) || 0);
+  } catch { /* ignore */ }
+  const { recordPackGeneration } = await import("../tokens/token-ledger.js");
+  await recordPackGeneration(root, { agent: provider, task: "provider pack export", pack: profile.file, rawTokens, compressedTokens: tokens });
+
+  return { provider, file, tokens, budget: profile.budget, removedSections };
 }

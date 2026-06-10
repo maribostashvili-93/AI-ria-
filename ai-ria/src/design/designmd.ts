@@ -82,5 +82,12 @@ export async function buildDesignPack(root: string): Promise<string> {
 
   const markdown = lines.join("\n");
   await writeRiaFile(root, "design/DESIGN_PACK.md", markdown);
+
+  // Token accounting: the design pack serves visual agents.
+  const { estimateTokens } = await import("../compression/tokenizer.js");
+  const { recordPackGeneration } = await import("../tokens/token-ledger.js");
+  const rawTokens = estimateTokens([designMd ?? "", figmaSummary ?? "", memory ? JSON.stringify(memory) : ""].join("\n"));
+  await recordPackGeneration(root, { agent: "visual-agent", task: "design pack build", pack: "DESIGN_PACK.md", rawTokens, compressedTokens: estimateTokens(markdown) });
+
   return markdown;
 }

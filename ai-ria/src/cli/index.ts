@@ -23,6 +23,10 @@ import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-
 import { loadIndex, rebuildIndex } from "../memory/memory-index.js";
 import { buildAgentPack } from "../agentpack/agent-pack.js";
 import { buildProviderPack, Provider } from "../exports/provider-packs.js";
+import { recordPackGeneration } from "../tokens/token-ledger.js";
+import { writeTokenReport, buildTokenSummary, tokenSummaryToMarkdown, comparePacks } from "../tokens/token-report.js";
+import { setBudget } from "../tokens/token-budget.js";
+import { fmt } from "../tokens/token-estimator.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
 import { toJson } from "../output/json.js";
 import { repoMapToMarkdown, contextPackToMarkdown, securityToMarkdown, skillsToMarkdown } from "../output/markdown.js";
@@ -143,6 +147,7 @@ context
       await writeRiaFile(path, "context/token-report.json", toJson(pack.report)),
     ];
     const r = pack.report;
+    await recordPackGeneration(path, { agent: "any", task: "context build", pack: "context/context-pack.md", rawTokens: r.rawTokens, compressedTokens: r.compressedTokens });
     done(files, `  ~${r.compressedTokens} tokens vs ~${r.rawTokens} raw (ratio ${r.compressionRatio}) | kept ${r.includedFiles.length}, excluded ${r.excludedFiles.length}`);
     if (opts.json) console.log(toJson(r));
   });
@@ -530,6 +535,67 @@ program
   .action(async () => {
     const { startServer } = await import("../mcp/server.js");
     await startServer();
+  });
+
+// ------------------------- token accounting -------------------------
+
+const tokensCmd = program.command("tokens").description("v0.1 - Token Accounting Engine: measure usage and savings per agent, task, and pack");
+
+tokensCmd
+  .command("report")
+  .description("Aggregate the ledger -> .ria/tokens/TOKEN_REPORT.md + token-summary.json")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print summary as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { summary, files } = await writeTokenReport(path);
+    done(files);
+    if (opts.json) return void console.log(toJson(summary));
+    console.log(`Raw context: ${fmt(summary.totalRawTokens)} tokens`);
+    console.log(`Compressed context: ${fmt(summary.totalCompressedTokens)} tokens`);
+    console.log(`Saved: ${fmt(summary.totalSavedTokens)} tokens`);
+    console.log(`Savings: ${summary.savingsPercent}%`);
+    const byPack = Object.entries(summary.byPack).sort((a, b) => b[1] - a[1]);
+    if (byPack.length) {
+      console.log("");
+      for (const [pack, tokens] of byPack) console.log(`${pack}: ${fmt(tokens)} tokens`);
+    }
+    for (const w of summary.warnings) console.log(`WARNING: ${w}`);
+  });
+
+tokensCmd
+  .command("agent")
+  .description("Token usage for one agent")
+  .argument("<path>", "repository path")
+  .argument("<agentName>", "agent name (claude, cursor, codex, visual-agent, security-agent, compact)")
+  .option("--json", "print as JSON")
+  .action(async (path: string, agentName: string, opts: { json?: boolean }) => {
+    const summary = await buildTokenSummary(path, agentName);
+    console.log(opts.json ? toJson(summary) : tokenSummaryToMarkdown(summary));
+  });
+
+tokensCmd
+  .command("budget")
+  .description("Set a custom token limit for an agent -> .ria/tokens/budgets.json")
+  .argument("[path]", "repository path", ".")
+  .requiredOption("--agent <agent>", "agent name")
+  .requiredOption("--limit <n>", "token limit")
+  .action(async (path: string, opts: { agent: string; limit: string }) => {
+    const limit = Number(opts.limit);
+    if (!limit || limit <= 0) {
+      console.error("Provide a positive --limit.");
+      process.exitCode = 1;
+      return;
+    }
+    await setBudget(path, opts.agent, limit);
+    console.log(`Budget set: ${opts.agent} -> ${fmt(limit)} tokens`);
+  });
+
+tokensCmd
+  .command("compare")
+  .description("Compare generated pack sizes against every agent profile's preferred budget")
+  .argument("[path]", "repository path", ".")
+  .action(async (path: string) => {
+    console.log(await comparePacks(path));
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {

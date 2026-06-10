@@ -114,5 +114,17 @@ export async function buildAgentPack(root: string): Promise<{ data: AgentPackDat
       missing: data.missing,
     }, null, 2)),
   ];
+
+  // Token accounting: every pack generation lands in the ledger.
+  let rawTokens = data.tokens;
+  const tokenReport = await readRiaFile(root, "context/token-report.json");
+  if (tokenReport) {
+    try {
+      rawTokens = Math.max(rawTokens, Number(JSON.parse(tokenReport).rawTokens) || 0);
+    } catch { /* ignore */ }
+  }
+  const { recordPackGeneration } = await import("../tokens/token-ledger.js");
+  await recordPackGeneration(root, { agent: "any", task: "agent pack build", pack: "AGENT_PACK.md", rawTokens, compressedTokens: estimateTokens(markdown) });
+
   return { data, files };
 }
