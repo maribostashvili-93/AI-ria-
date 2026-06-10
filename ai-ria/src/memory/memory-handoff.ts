@@ -3,7 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { ensureRiaDir } from "../core/paths.js";
 import { Handoff, HandoffSchema } from "../core/types.js";
-import { loadMemories } from "./memory-index.js";
+import { loadMemories } from "./memory-store.js";
 import { loadDesignMemory } from "./memory-store.js";
 
 export const HANDOFFS_DIR = "handoffs";

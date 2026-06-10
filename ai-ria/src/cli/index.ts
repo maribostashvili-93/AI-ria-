@@ -10,10 +10,6 @@ import { buildUiFixSuggestions, suggestionsToPatch, suggestionsToReport } from "
 import { listSkills, runSkill } from "../skills/registry.js";
 import { FigmaClient, extractFromFigmaFile, figmaSummaryMarkdown } from "../figma/client.js";
 import { compareFigmaToCode, diffToMarkdown } from "../figma/compare.js";
-import { saveMemory, buildDesignMemory, loadDesignMemory, mapDesignComponent, designMemoryToMarkdown } from "../memory/memory-store.js";
-import { searchMemories, hitsToMarkdown } from "../memory/memory-search.js";
-import { compressMemories } from "../memory/memory-compress.js";
-import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
 import { loadIndex } from "../memory/memory-index.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
 import { toJson } from "../output/json.js";
@@ -121,10 +117,11 @@ designCmd
   .option("--refresh", "rebuild from code/Figma tokens even if design memory exists")
   .option("--json", "print as JSON")
   .action(async (path: string, opts: { refresh?: boolean; json?: boolean }) => {
+    const { buildDesignMemory, loadDesignMemory, designMemoryToMarkdown } = await import("../memory/memory-store.js");
     let memory = opts.refresh ? null : await loadDesignMemory(path);
     if (!memory) {
       const report = await analyzeDesign(path);
-      const { loadMemories } = await import("../memory/memory-index.js");
+      const { loadMemories } = await import("../memory/memory-store.js");
       const designEntries = (await loadMemories(path)).filter((e) => e.type === "design");
       memory = await buildDesignMemory(path, report.tokens, designEntries);
     }
@@ -138,6 +135,7 @@ designCmd
   .argument("<files...>", "code files implementing it (e.g. button.tsx button.css)")
   .option("--path <path>", "repository path", ".")
   .action(async (component: string, files: string[], opts: { path: string }) => {
+    const { mapDesignComponent } = await import("../memory/memory-store.js");
     const memory = await mapDesignComponent(opts.path, component, files);
     console.log(`✔ ${component} ↔ ${memory.components[component].files.join(", ")}`);
   });
@@ -271,6 +269,7 @@ memory
   .option("--agent <agent>", "which agent made the decision (claude, cursor, codex, …)")
   .option("--json", "print the saved entry as JSON")
   .action(async (path: string, opts: { task: string; decision: string; reason?: string; type?: string; files?: string; tags?: string; agent?: string; json?: boolean }) => {
+    const { saveMemory } = await import("../memory/memory-store.js");
     const entry = await saveMemory(path, {
       task: opts.task,
       decision: opts.decision,
@@ -292,6 +291,7 @@ memory
   .option("--limit <n>", "max results", "10")
   .option("--json", "print hits as JSON")
   .action(async (query: string, path: string, opts: { limit: string; json?: boolean }) => {
+    const { searchMemories, hitsToMarkdown } = await import("../memory/memory-search.js");
     const hits = await searchMemories(path, query, Number(opts.limit) || 10);
     console.log(opts.json ? toJson(hits) : hitsToMarkdown(query, hits));
   });
@@ -302,6 +302,7 @@ memory
   .argument("[path]", "repository path", ".")
   .option("--json", "also print the pack as JSON")
   .action(async (path: string, opts: { json?: boolean }) => {
+    const { compressMemories } = await import("../memory/memory-compress.js");
     const pack = await compressMemories(path);
     const f1 = await writeRiaFile(path, "memory-pack.md", pack.markdown);
     done([f1], `  ${pack.entryCount} entries → ~${pack.tokenEstimate} tokens (raw ≈ ${pack.originalTokenEstimate}, ratio ${pack.compressionRatio})`);
@@ -335,6 +336,7 @@ handoff
   .option("--agent <agent>", "agent handing off")
   .option("--json", "print the handoff as JSON")
   .action(async (path: string, opts: { task: string; completed?: string; remaining?: string; warnings?: string; agent?: string; json?: boolean }) => {
+    const { createHandoff } = await import("../memory/memory-handoff.js");
     const { handoff: h, file } = await createHandoff(path, {
       task: opts.task,
       agent: opts.agent,
@@ -353,6 +355,7 @@ handoff
   .option("--id <id>", "specific handoff id")
   .option("--json", "print as JSON")
   .action(async (path: string, opts: { id?: string; json?: boolean }) => {
+    const { loadHandoff, handoffToMarkdown } = await import("../memory/memory-handoff.js");
     const h = await loadHandoff(path, opts.id);
     if (!h) {
       console.error("No handoff found. Run `ria handoff create` first.");

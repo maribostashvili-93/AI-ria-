@@ -14,7 +14,7 @@ import { saveMemory, buildDesignMemory, loadDesignMemory, designMemoryToMarkdown
 import { searchMemories, hitsToMarkdown } from "../memory/memory-search.js";
 import { compressMemories } from "../memory/memory-compress.js";
 import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
-import { loadMemories } from "../memory/memory-index.js";
+import { loadMemories } from "../memory/memory-store.js";
 
 const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));

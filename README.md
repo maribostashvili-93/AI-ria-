@@ -177,57 +177,70 @@ npm run ria -- figma extract ./my-app --from ./examples/figma-export.json
 npm run ria -- figma compare ./my-app
 ```
 
-## 🧪 ChemService Example
+## 🧪 Real Project Example: LearnSpace Assistant Program
 
-The following is a realistic workflow for a repository such as `chemservice-portal`, where multiple agents work on regulated product catalog, ordering, and compliance UI flows.
+AI RIA was run against a real local project: `asistentprogram`, a Vite + React learning assistant app with role-based routing, room pages, dashboards, and authentication context.
 
 ### 1. Analyze the repository
 
 ```bash
 cd ai-ria
-npm run ria -- analyze ../chemservice-portal
+npm run ria -- analyze "C:\samushao\ასისტენტის როლი\asistentprogram"
 ```
 
-### 2. Save a team decision into shared memory
+### 2. Real output summary
 
-```bash
-npm run ria -- memory save ../chemservice-portal \
-  --task "SDS document experience" \
-  --decision "Keep safety document links inside product detail pages" \
-  --reason "Compliance and support teams require a stable, user-visible location" \
-  --type decision \
-  --files "src/pages/products/[id].tsx,src/components/SdsPanel.tsx" \
-  --tags "compliance,product-detail,chemservice" \
-  --agent codex
+| Metric | Result |
+| --- | --- |
+| Framework | `React` |
+| Package manager | `npm` |
+| Files scanned | `38` |
+| Total lines | `4652` |
+| Routes detected | `9` |
+| Components detected | `20` |
+| Stylesheets detected | `1` |
+| Design tokens detected | `0` |
+| Security findings | `0` |
+| Context pack | `~5858 tokens` vs `~32351 raw` |
+
+### 3. Generated output
+
+```text
+C:\samushao\ასისტენტის როლი\asistentprogram\.ria\
+├── AGENT_CONTEXT.md
+├── AGENTS.md
+├── ARCHITECTURE.md
+├── DESIGN.md
+├── FEATURES.md
+├── SECURITY_REPORT.md
+├── context-pack.json
+├── context-pack.md
+├── repo-map.json
+├── repo-summary.md
+├── security-report.json
+└── summary.json
 ```
 
-### 3. Hand off work to another agent
+### 4. What AI RIA understood about the app
 
-```bash
-npm run ria -- handoff create ../chemservice-portal \
-  --task "Improve hazardous material checkout flow" \
-  --completed "Product detail warnings, compliance banner" \
-  --remaining "Shipping restrictions, checkout validation, audit copy review" \
-  --warnings "Do not modify payment provider integration without review" \
-  --agent codex
-```
+| Area | What AI RIA detected |
+| --- | --- |
+| App type | Learning assistant / dashboard-style React app |
+| Routing | Public, protected, and role-based routes |
+| Feature areas | Main hub, video room, materials room, assignment room, help room |
+| Access model | Login flow plus assistant/admin route separation |
+| Architecture signals | `src/` layout, React components, context-based auth, Vite setup |
 
-### 4. Run security checks before merging
-
-```bash
-npm run ria -- security ../chemservice-portal
-```
-
-### What the next agent gets
+### 5. What the next agent gets
 
 | File | Why it matters |
 | --- | --- |
-| `.ria/AGENT_CONTEXT.md` | Fast onboarding context |
-| `.ria/ARCHITECTURE.md` | Repo structure and important modules |
-| `.ria/DESIGN.md` | Design rules and token awareness |
-| `.ria/memory-pack.md` | Compressed decision history |
-| `.ria/handoffs/latest.json` | Exact task state for agent handoff |
-| `.ria/SECURITY_REPORT.md` | Known risks and policy-sensitive areas |
+| `.ria/AGENT_CONTEXT.md` | Fast onboarding context for the repo |
+| `.ria/ARCHITECTURE.md` | High-level repo structure and navigation points |
+| `.ria/FEATURES.md` | Feature inventory and page coverage |
+| `.ria/DESIGN.md` | Current design-system understanding from code |
+| `.ria/context-pack.md` | Compressed repo context for token-efficient agent use |
+| `.ria/SECURITY_REPORT.md` | Security scan result for the project |
 
 ## 📁 Generated `.ria/` Folder Example
 

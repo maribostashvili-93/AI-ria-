@@ -1,6 +1,6 @@
 import { estimateTokens } from "../compression/compressor.js";
 import { MemoryEntry, MemoryPack, MemoryPackSchema, MemoryType } from "../core/types.js";
-import { loadMemories } from "./memory-index.js";
+import { loadMemories } from "./memory-store.js";
 
 const SECTION_ORDER: MemoryType[] = ["decision", "architecture", "design", "security", "note"];
 const SECTION_TITLES: Record<MemoryType, string> = {
