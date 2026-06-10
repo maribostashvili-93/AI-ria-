@@ -1,0 +1,16 @@
+:root {
+  --color-primary: #4f46e5;
+  --color-secondary: #0ea5e9;
+  --color-surface: #ffffff;
+  --color-text: #111827;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --text-base: 16px;
+  --spacing-unit: 4px;
+  --radius-md: 6px;
+}
+
+body {
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+}

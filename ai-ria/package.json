@@ -1,0 +1,41 @@
+{
+  "name": "ai-ria",
+  "version": "0.1.0",
+  "description": "AI RIA — Runtime Intelligence Assistant. An intelligence layer for AI coding agents: repository intelligence, context compression, design awareness, security checks.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "ria": "./dist/cli/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx src/cli/index.ts",
+    "ria": "tsx src/cli/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "repository-intelligence",
+    "context-compression",
+    "design-system",
+    "security"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "commander": "^12.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.0"
+  }
+}

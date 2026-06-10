@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import path from "node:path";
+import { scanRepo } from "../src/repo/scanner.js";
+import { compressRepoMap, buildContextPack, estimateTokens } from "../src/compression/compressor.js";
+
+const SAMPLE = path.join(__dirname, "..", "examples", "sample-app");
+const DEMO = path.join(__dirname, "..", "examples", "demo-app");
+
+describe("estimateTokens", () => {
+  it("estimates ~4 chars per token", () => {
+    expect(estimateTokens("abcd".repeat(10))).toBe(10);
+    expect(estimateTokens("")).toBe(0);
+  });
+});
+
+describe("compressRepoMap", () => {
+  it("produces a summary smaller than the raw repo", async () => {
+    const map = await scanRepo(SAMPLE);
+    const ctx = compressRepoMap(map);
+    expect(ctx.summary).toContain("sample-app");
+    expect(ctx.summary).toContain("express");
+    expect(ctx.tokenEstimate).toBeLessThan(ctx.originalTokenEstimate);
+    expect(ctx.compressionRatio).toBeLessThan(1);
+  });
+});
+
+describe("buildContextPack (v0.1)", () => {
+  it("selects key files with roles and compresses", async () => {
+    const map = await scanRepo(DEMO);
+    const pack = await buildContextPack(DEMO, map);
+    expect(pack.files.length).toBeGreaterThan(0);
+    expect(pack.files.some((f) => f.path === "package.json" && f.role === "config")).toBe(true);
+    expect(pack.compressionRatio).toBeLessThan(1);
+    expect(pack.totalTokens).toBeGreaterThan(0);
+  });
+
+  it("deduplicates identical content and respects limits", async () => {
+    const map = await scanRepo(DEMO);
+    const pack = await buildContextPack(DEMO, map);
+    const paths = pack.files.map((f) => f.path);
+    expect(new Set(paths).size).toBe(paths.length);
+    expect(pack.files.length).toBeLessThanOrEqual(30);
+  });
+});

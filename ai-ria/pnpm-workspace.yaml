@@ -1,0 +1,6 @@
+# Allow esbuild's postinstall script (required by vitest/tsx).
+# pnpm 11+ uses allowBuilds; pnpm 10 uses onlyBuiltDependencies.
+allowBuilds:
+  esbuild: true
+onlyBuiltDependencies:
+  - esbuild

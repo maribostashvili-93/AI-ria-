@@ -1,0 +1,54 @@
+{
+  "name": "Demo Design File",
+  "document": {
+    "id": "0:0",
+    "type": "DOCUMENT",
+    "children": [
+      {
+        "id": "1:0",
+        "type": "CANVAS",
+        "name": "Page 1",
+        "children": [
+          {
+            "id": "1:1",
+            "type": "COMPONENT",
+            "name": "Button/Primary",
+            "cornerRadius": 12,
+            "itemSpacing": 8,
+            "fills": [{ "type": "SOLID", "color": { "r": 0.3098, "g": 0.2745, "b": 0.898, "a": 1 } }],
+            "children": [
+              {
+                "id": "1:2",
+                "type": "TEXT",
+                "name": "Label",
+                "style": { "fontFamily": "Inter", "fontSize": 16, "fontWeight": 600 }
+              }
+            ]
+          },
+          {
+            "id": "1:3",
+            "type": "COMPONENT",
+            "name": "Card",
+            "cornerRadius": 16,
+            "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }],
+            "children": [
+              {
+                "id": "1:4",
+                "type": "TEXT",
+                "name": "Card Title",
+                "style": { "fontFamily": "Inter", "fontSize": 20, "fontWeight": 700 }
+              }
+            ]
+          },
+          {
+            "id": "1:5",
+            "type": "FRAME",
+            "name": "Hero",
+            "fills": [{ "type": "SOLID", "color": { "r": 0.0549, "g": 0.6471, "b": 0.9137, "a": 1 } }],
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
