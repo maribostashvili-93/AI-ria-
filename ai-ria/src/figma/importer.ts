@@ -6,6 +6,8 @@ import { figmaSummaryMarkdown, extractFromFigmaFile } from "./client.js";
 export interface ImportedFigmaData {
   tokens: FigmaTokens;
   components: FigmaComponent[];
+  sourceKind: "tokens" | "figma-export" | "mcp-export";
+  normalizedSource?: unknown;
 }
 
 function isFigmaTokenPayload(value: unknown): value is FigmaTokens {
@@ -65,22 +67,30 @@ function normalizeMcpPayload(value: unknown): unknown {
   return record;
 }
 
-export async function importFigmaData(inputFile: string): Promise<ImportedFigmaData> {
+export async function importFigmaData(inputFile: string, mode: "auto" | "mcp-export" = "auto"): Promise<ImportedFigmaData> {
   const raw = JSON.parse(await fs.readFile(inputFile, "utf8")) as unknown;
-  const normalized = normalizeMcpPayload(raw);
+  const normalized = mode === "mcp-export" ? normalizeMcpPayload(raw) : normalizeMcpPayload(raw);
   if (isFigmaTokenPayload(normalized)) {
     return {
       tokens: FigmaTokensSchema.parse(normalized),
       components: Array.isArray((normalized as Record<string, unknown>).components) ? ((normalized as Record<string, unknown>).components as FigmaComponent[]) : [],
+      sourceKind: mode === "mcp-export" ? "mcp-export" : "tokens",
+      normalizedSource: normalized,
     };
   }
-  return extractFromFigmaFile(normalized as Record<string, unknown>);
+  const extracted = extractFromFigmaFile(normalized as Record<string, unknown>);
+  return {
+    ...extracted,
+    sourceKind: mode === "mcp-export" ? "mcp-export" : "figma-export",
+    normalizedSource: normalized,
+  };
 }
 
 export async function writeImportedFigmaData(root: string, data: ImportedFigmaData): Promise<string[]> {
   const files = [
     await writeRiaFile(root, "figma/figma-tokens.json", JSON.stringify(data.tokens, null, 2)),
     await writeRiaFile(root, "figma/FIGMA_SUMMARY.md", figmaSummaryMarkdown(data.tokens, data.components)),
+    await writeRiaFile(root, "figma/MCP_EXPORT_NORMALIZED.json", JSON.stringify(data.normalizedSource ?? {}, null, 2)),
     await writeRiaFile(root, "figma-tokens.json", JSON.stringify(data.tokens, null, 2)),
     await writeRiaFile(root, "figma-components.json", JSON.stringify(data.components, null, 2)),
     await writeRiaFile(root, "figma-design-summary.md", figmaSummaryMarkdown(data.tokens, data.components)),

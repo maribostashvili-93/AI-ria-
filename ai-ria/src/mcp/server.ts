@@ -184,6 +184,21 @@ export const MCP_TOOL_REGISTRY: ReadonlyArray<{ name: string; register: ToolRegi
     },
   },
   {
+    name: "agent_pack",
+    register: (server) => {
+      server.tool(
+        "agent_pack",
+        "Build AGENT_PACK.md - the single file an agent should read before editing: compressed context, short memory, handoff, design pack, security warnings",
+        pathArg,
+        async ({ path }) => {
+          const { buildAgentPack, agentPackToMarkdown } = await import("../agentpack/agent-pack.js");
+          const { data } = await buildAgentPack(path);
+          return text(agentPackToMarkdown(data, path));
+        },
+      );
+    },
+  },
+  {
     name: "design_recall",
     register: (server) => {
       server.tool("design_recall", "Recall Design Memory (rules, tokens, component->code map); built from code/Figma tokens if missing", pathArg, async ({ path }) => {

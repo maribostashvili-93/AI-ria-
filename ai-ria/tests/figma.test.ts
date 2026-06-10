@@ -5,6 +5,7 @@ import { analyzeDesign } from "../src/design/analyzer.js";
 import { extractFromFigmaFile, rgbToHex } from "../src/figma/client.js";
 import { compareFigmaToCode, diffToMarkdown } from "../src/figma/compare.js";
 import { importFigmaData } from "../src/figma/importer.js";
+import { buildFigmaWorkflowGuide, figmaWorkflowGuideToMarkdown, parseFigmaLink } from "../src/figma/link.js";
 
 const FIXTURE = path.join(__dirname, "..", "examples", "figma-export.json");
 const DEMO = path.join(__dirname, "..", "examples", "demo-app");
@@ -85,5 +86,20 @@ describe("figma adapter", () => {
     } finally {
       await fs.rm(tmp, { force: true });
     }
+  });
+
+  it("extracts a file key from a Figma link and generates workflow hints", () => {
+    const parsed = parseFigmaLink("https://www.figma.com/design/xRu6Y23NtPIMWgtRAMcriV/Introduction-to-css?node-id=0-1&p=f&t=abc-0");
+    expect(parsed.fileKey).toBe("xRu6Y23NtPIMWgtRAMcriV");
+    expect(parsed.linkType).toBe("design");
+
+    const guide = buildFigmaWorkflowGuide("C:\\project", parsed.url);
+    expect(guide.tokenCommand).toContain("--file xRu6Y23NtPIMWgtRAMcriV");
+    expect(guide.mcpImportCommand).toContain("--mcp-export");
+
+    const markdown = figmaWorkflowGuideToMarkdown(guide);
+    expect(markdown).toContain("File key: xRu6Y23NtPIMWgtRAMcriV");
+    expect(markdown).toContain("Direct Figma API");
+    expect(markdown).toContain("Tokenless MCP / Plugin Export");
   });
 });

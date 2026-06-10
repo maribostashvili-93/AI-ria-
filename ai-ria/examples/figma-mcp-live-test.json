@@ -1,0 +1,8 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"id\":\"0:1\",\"name\":\"Hot Post MCP Frame\",\"type\":\"FRAME\",\"cornerRadius\":14,\"itemSpacing\":20,\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.486,\"g\":0.227,\"b\":0.929}}],\"children\":[{\"id\":\"0:2\",\"name\":\"Headline\",\"type\":\"TEXT\",\"characters\":\"Hot Post\",\"style\":{\"fontFamily\":\"Inter\",\"fontSize\":28}},{\"id\":\"0:3\",\"name\":\"Card/Featured\",\"type\":\"COMPONENT\",\"fills\":[{\"type\":\"SOLID\",\"color\":{\"r\":0.062,\"g\":0.063,\"b\":0.094}}],\"children\":[]}]}"
+    }
+  ]
+}
