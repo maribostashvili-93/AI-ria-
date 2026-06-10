@@ -63,7 +63,7 @@ export async function importDesignMd(root: string, file: string): Promise<Design
 export async function buildDesignPack(root: string): Promise<string> {
   const memory = await loadDesignMemory(root);
   const figmaSummary = await readRiaFile(root, "figma/FIGMA_SUMMARY.md");
-  const designMd = await readRiaFile(root, "DESIGN.md");
+  const designMd = (await readRiaFile(root, "design/DESIGN.md")) ?? (await readRiaFile(root, "DESIGN.md"));
 
   const lines: string[] = ["# Design Pack", "", `Generated: ${new Date().toISOString()}`, ""];
   if (memory) {
