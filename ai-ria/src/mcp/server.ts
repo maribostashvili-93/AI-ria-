@@ -20,139 +20,196 @@ const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const json = (v: unknown) => text(JSON.stringify(v, null, 2));
 const pathArg = { path: z.string().default(".").describe("Repository path") };
 
+type ToolRegistrar = (server: McpServer) => void;
+
+export const MCP_TOOL_REGISTRY: ReadonlyArray<{ name: string; register: ToolRegistrar }> = [
+  {
+    name: "repo_scan",
+    register: (server) => {
+      server.tool("repo_scan", "Scan a repository and return its intelligence map", pathArg, async ({ path }) => json(await scanRepo(path)));
+    },
+  },
+  {
+    name: "repo_analyze",
+    register: (server) => {
+      server.tool("repo_analyze", "Generate agent-readable knowledge docs (architecture, features, agent rules, agent context)", pathArg, async ({ path }) => {
+        const map = await scanRepo(path);
+        return json({
+          architecture: generateArchitectureMd(map),
+          features: generateFeaturesMd(map),
+          agents: generateAgentsMd(map),
+          agentContext: generateAgentContextMd(map),
+        });
+      });
+    },
+  },
+  {
+    name: "context_compress",
+    register: (server) => {
+      server.tool("context_compress", "Build a token-efficient context pack for the repository", pathArg, async ({ path }) => {
+        const map = await scanRepo(path);
+        return json(await buildContextPack(path, map));
+      });
+    },
+  },
+  {
+    name: "design_generate",
+    register: (server) => {
+      server.tool("design_generate", "Generate DESIGN.md content from detected design tokens", pathArg, async ({ path }) => {
+        const map = await scanRepo(path);
+        const report = await analyzeDesign(path);
+        return text(generateDesignMd(report, map));
+      });
+    },
+  },
+  {
+    name: "figma_extract",
+    register: (server) => {
+      server.tool(
+        "figma_extract",
+        "Extract design tokens and components from a Figma file (API via FIGMA_TOKEN, or local JSON export)",
+        { fileKey: z.string().optional().describe("Figma file key (API mode)"), localFile: z.string().optional().describe("Path to a local Figma JSON export") },
+        async ({ fileKey, localFile }) => {
+          const client = new FigmaClient();
+          const file = localFile ? await client.loadLocalFile(localFile) : await client.fetchFile(fileKey ?? "");
+          return json(extractFromFigmaFile(file));
+        },
+      );
+    },
+  },
+  {
+    name: "figma_compare",
+    register: (server) => {
+      server.tool(
+        "figma_compare",
+        "Compare extracted Figma tokens against the repository's code tokens",
+        { ...pathArg, figmaTokensFile: z.string().describe("Path to figma-tokens.json (from figma_extract)") },
+        async ({ path, figmaTokensFile }) => {
+          const { promises: fs } = await import("node:fs");
+          const figma = JSON.parse(await fs.readFile(figmaTokensFile, "utf8"));
+          const code = await analyzeDesign(path);
+          const diff = compareFigmaToCode(figma, code);
+          return text(diffToMarkdown(diff, figma.source ?? figmaTokensFile));
+        },
+      );
+    },
+  },
+  {
+    name: "security_scan",
+    register: (server) => {
+      server.tool("security_scan", "Scan the repository for secrets and unsafe patterns (report only)", pathArg, async ({ path }) => json(await scanSecurity(path)));
+    },
+  },
+  {
+    name: "skill_run",
+    register: (server) => {
+      server.tool(
+        "skill_run",
+        `Run an executable agent skill. Available: ${listSkills().map((s) => s.name).join(", ")}`,
+        { ...pathArg, skill: z.string().describe("Skill name") },
+        async ({ path, skill }) => json(await runSkill(skill, path)),
+      );
+    },
+  },
+  {
+    name: "memory_save",
+    register: (server) => {
+      server.tool(
+        "memory_save",
+        "Save a project-scoped memory entry (decision, architecture, design, security, note) other agents will see",
+        {
+          ...pathArg,
+          task: z.string().describe("What was being worked on"),
+          decision: z.string().describe("What was decided"),
+          reason: z.string().optional().describe("Why"),
+          type: z.enum(["decision", "architecture", "design", "security", "note"]).default("decision"),
+          files: z.array(z.string()).default([]).describe("Affected files"),
+          tags: z.array(z.string()).default([]),
+          agent: z.string().optional().describe("Which agent made the decision"),
+        },
+        async ({ path, ...input }) => json(await saveMemory(path, input)),
+      );
+    },
+  },
+  {
+    name: "memory_search",
+    register: (server) => {
+      server.tool(
+        "memory_search",
+        "Search project memory by topic - returns previous decisions, reasons, and affected files",
+        { ...pathArg, query: z.string().describe("Topic, e.g. 'product cards'"), limit: z.number().int().positive().default(10) },
+        async ({ path, query, limit }) => text(hitsToMarkdown(query, await searchMemories(path, query, limit))),
+      );
+    },
+  },
+  {
+    name: "memory_compress",
+    register: (server) => {
+      server.tool("memory_compress", "Distill all project memories into one compact markdown pack (decisions kept, noise dropped)", pathArg, async ({ path }) => {
+        const pack = await compressMemories(path);
+        return text(pack.markdown);
+      });
+    },
+  },
+  {
+    name: "handoff_create",
+    register: (server) => {
+      server.tool(
+        "handoff_create",
+        "Create a handoff.json so another agent can resume this task; recent decisions and design rules are injected automatically",
+        {
+          ...pathArg,
+          task: z.string(),
+          completed: z.array(z.string()).default([]),
+          remaining: z.array(z.string()).default([]),
+          warnings: z.array(z.string()).default([]),
+          agent: z.string().optional(),
+        },
+        async ({ path, ...input }) => json((await createHandoff(path, input)).handoff),
+      );
+    },
+  },
+  {
+    name: "handoff_load",
+    register: (server) => {
+      server.tool(
+        "handoff_load",
+        "Load the latest handoff (or a specific id) as agent-ready markdown to resume where the previous agent stopped",
+        { ...pathArg, id: z.string().optional() },
+        async ({ path, id }) => {
+          const h = await loadHandoff(path, id);
+          return h ? text(handoffToMarkdown(h)) : text("No handoff found.");
+        },
+      );
+    },
+  },
+  {
+    name: "design_recall",
+    register: (server) => {
+      server.tool("design_recall", "Recall Design Memory (rules, tokens, component->code map); built from code/Figma tokens if missing", pathArg, async ({ path }) => {
+        let memory = await loadDesignMemory(path);
+        if (!memory) {
+          const report = await analyzeDesign(path);
+          const designEntries = (await loadMemories(path)).filter((e) => e.type === "design");
+          memory = await buildDesignMemory(path, report.tokens, designEntries);
+        }
+        return text(designMemoryToMarkdown(memory));
+      });
+    },
+  },
+];
+
 /**
  * v0.1: MCP server. Exposes AI RIA to Cursor, Claude Code, Windsurf, etc.
- * Tool names use underscores (MCP naming rules): repo.scan → repo_scan.
+ * Tool names use underscores (MCP naming rules): repo.scan -> repo_scan.
  */
 export function createServer(): McpServer {
   const server = new McpServer({ name: "ai-ria", version: "0.2.0" });
-
-  server.tool("repo_scan", "Scan a repository and return its intelligence map", pathArg, async ({ path }) => json(await scanRepo(path)));
-
-  server.tool("repo_analyze", "Generate agent-readable knowledge docs (architecture, features, agent rules, agent context)", pathArg, async ({ path }) => {
-    const map = await scanRepo(path);
-    return json({
-      architecture: generateArchitectureMd(map),
-      features: generateFeaturesMd(map),
-      agents: generateAgentsMd(map),
-      agentContext: generateAgentContextMd(map),
-    });
-  });
-
-  server.tool("context_compress", "Build a token-efficient context pack for the repository", pathArg, async ({ path }) => {
-    const map = await scanRepo(path);
-    return json(await buildContextPack(path, map));
-  });
-
-  server.tool("design_generate", "Generate DESIGN.md content from detected design tokens", pathArg, async ({ path }) => {
-    const map = await scanRepo(path);
-    const report = await analyzeDesign(path);
-    return text(generateDesignMd(report, map));
-  });
-
-  server.tool(
-    "figma_extract",
-    "Extract design tokens and components from a Figma file (API via FIGMA_TOKEN, or local JSON export)",
-    { fileKey: z.string().optional().describe("Figma file key (API mode)"), localFile: z.string().optional().describe("Path to a local Figma JSON export") },
-    async ({ fileKey, localFile }) => {
-      const client = new FigmaClient();
-      const file = localFile ? await client.loadLocalFile(localFile) : await client.fetchFile(fileKey ?? "");
-      return json(extractFromFigmaFile(file));
-    },
-  );
-
-  server.tool(
-    "figma_compare",
-    "Compare extracted Figma tokens against the repository's code tokens",
-    { ...pathArg, figmaTokensFile: z.string().describe("Path to figma-tokens.json (from figma_extract)") },
-    async ({ path, figmaTokensFile }) => {
-      const { promises: fs } = await import("node:fs");
-      const figma = JSON.parse(await fs.readFile(figmaTokensFile, "utf8"));
-      const code = await analyzeDesign(path);
-      const diff = compareFigmaToCode(figma, code);
-      return text(diffToMarkdown(diff, figma.source ?? figmaTokensFile));
-    },
-  );
-
-  server.tool("security_scan", "Scan the repository for secrets and unsafe patterns (report only)", pathArg, async ({ path }) => json(await scanSecurity(path)));
-
-  server.tool(
-    "skill_run",
-    `Run an executable agent skill. Available: ${listSkills().map((s) => s.name).join(", ")}`,
-    { ...pathArg, skill: z.string().describe("Skill name") },
-    async ({ path, skill }) => json(await runSkill(skill, path)),
-  );
-
-  server.tool(
-    "memory_save",
-    "Save a project-scoped memory entry (decision, architecture, design, security, note) other agents will see",
-    {
-      ...pathArg,
-      task: z.string().describe("What was being worked on"),
-      decision: z.string().describe("What was decided"),
-      reason: z.string().optional().describe("Why"),
-      type: z.enum(["decision", "architecture", "design", "security", "note"]).default("decision"),
-      files: z.array(z.string()).default([]).describe("Affected files"),
-      tags: z.array(z.string()).default([]),
-      agent: z.string().optional().describe("Which agent made the decision"),
-    },
-    async ({ path, ...input }) => json(await saveMemory(path, input)),
-  );
-
-  server.tool(
-    "memory_search",
-    "Search project memory by topic — returns previous decisions, reasons, and affected files",
-    { ...pathArg, query: z.string().describe("Topic, e.g. 'product cards'"), limit: z.number().int().positive().default(10) },
-    async ({ path, query, limit }) => text(hitsToMarkdown(query, await searchMemories(path, query, limit))),
-  );
-
-  server.tool("memory_compress", "Distill all project memories into one compact markdown pack (decisions kept, noise dropped)", pathArg, async ({ path }) => {
-    const pack = await compressMemories(path);
-    return text(pack.markdown);
-  });
-
-  server.tool(
-    "handoff_create",
-    "Create a handoff.json so another agent can resume this task; recent decisions and design rules are injected automatically",
-    {
-      ...pathArg,
-      task: z.string(),
-      completed: z.array(z.string()).default([]),
-      remaining: z.array(z.string()).default([]),
-      warnings: z.array(z.string()).default([]),
-      agent: z.string().optional(),
-    },
-    async ({ path, ...input }) => json((await createHandoff(path, input)).handoff),
-  );
-
-  server.tool(
-    "handoff_load",
-    "Load the latest handoff (or a specific id) as agent-ready markdown to resume where the previous agent stopped",
-    { ...pathArg, id: z.string().optional() },
-    async ({ path, id }) => {
-      const h = await loadHandoff(path, id);
-      return h ? text(handoffToMarkdown(h)) : text("No handoff found.");
-    },
-  );
-
-  server.tool("design_recall", "Recall Design Memory (rules, tokens, component→code map); built from code/Figma tokens if missing", pathArg, async ({ path }) => {
-    let memory = await loadDesignMemory(path);
-    if (!memory) {
-      const report = await analyzeDesign(path);
-      const designEntries = (await loadMemories(path)).filter((e) => e.type === "design");
-      memory = await buildDesignMemory(path, report.tokens, designEntries);
-    }
-    return text(designMemoryToMarkdown(memory));
-  });
-
+  for (const tool of MCP_TOOL_REGISTRY) tool.register(server);
   return server;
 }
 
-export const MCP_TOOLS = [
-  "repo_scan", "repo_analyze", "context_compress", "design_generate",
-  "figma_extract", "figma_compare", "security_scan", "skill_run",
-  "memory_save", "memory_search", "memory_compress", "handoff_create", "handoff_load", "design_recall",
-];
+export const MCP_TOOLS = MCP_TOOL_REGISTRY.map((tool) => tool.name);
 
 export async function startServer(): Promise<void> {
   const server = createServer();
