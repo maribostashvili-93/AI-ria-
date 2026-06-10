@@ -1,4 +1,4 @@
-import { estimateTokens } from "../compression/tokenizer.js";
+import { estimateTokens } from "../compression/compressor.js";
 import { MemoryEntry, MemoryPack, MemoryPackSchema, MemoryType } from "./memory-schema.js";
 import { loadMemories } from "./memory-store.js";
 

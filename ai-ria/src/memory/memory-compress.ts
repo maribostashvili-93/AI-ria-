@@ -2,36 +2,34 @@ import { estimateTokens } from "../compression/compressor.js";
 import { MemoryEntry, MemoryPack, MemoryPackSchema, MemoryType } from "../core/types.js";
 import { loadMemories } from "./memory-store.js";
 
-const SECTION_ORDER: MemoryType[] = ["decision", "architecture", "design", "security", "note"];
+const SECTION_ORDER: MemoryType[] = ["decision", "architecture-note", "design-rule", "warning", "security-note", "figma-note", "task"];
 const SECTION_TITLES: Record<MemoryType, string> = {
   decision: "Decisions",
-  architecture: "Architecture Notes",
-  design: "Design Decisions",
-  security: "Security Notes",
-  note: "Other Notes",
+  "architecture-note": "Architecture Notes",
+  "design-rule": "Design Rules",
+  warning: "Warnings",
+  "security-note": "Security Notes",
+  "figma-note": "Figma Notes",
+  task: "Tasks and Notes",
 };
-const MAX_NOTES = 5;
+const MAX_TASKS = 5;
 
-/**
- * Semantic compression over memory: preserve every decision/rule/warning as a
- * one-liner, dedupe repeats, and trim free-form notes (the noise) to the latest few.
- */
 export function compressEntries(entries: MemoryEntry[]): MemoryPack {
   const original = JSON.stringify(entries);
   const lines: string[] = ["# Project Memory (compressed)", ""];
 
   for (const type of SECTION_ORDER) {
-    let group = entries.filter((e) => e.type === type);
+    let group = entries.filter((entry) => entry.type === type);
     if (!group.length) continue;
-    if (type === "note") group = group.slice(-MAX_NOTES);
+    if (type === "task") group = group.slice(-MAX_TASKS);
 
     const seen = new Set<string>();
     const bullets: string[] = [];
-    for (const e of [...group].reverse()) {
-      const key = e.decision.toLowerCase().trim();
+    for (const entry of [...group].reverse()) {
+      const key = `${entry.title}|${entry.content}`.toLowerCase().trim();
       if (seen.has(key)) continue;
       seen.add(key);
-      bullets.push(`- ${e.decision}${e.reason ? ` — ${e.reason}` : ""}${e.files.length ? ` [${e.files.join(", ")}]` : ""}`);
+      bullets.push(`- ${entry.title}${entry.content ? ` - ${entry.content}` : ""}${entry.files.length ? ` [${entry.files.join(", ")}]` : ""}`);
     }
     lines.push(`## ${SECTION_TITLES[type]}`, "", ...bullets, "");
   }
@@ -49,7 +47,6 @@ export function compressEntries(entries: MemoryEntry[]): MemoryPack {
   });
 }
 
-/** Load all memories for a repo and compress them into one pack. */
 export async function compressMemories(root: string): Promise<MemoryPack> {
   return compressEntries(await loadMemories(root));
 }

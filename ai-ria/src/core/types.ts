@@ -221,6 +221,7 @@ export const HandoffSchema = z.object({
   id: z.string(),
   task: z.string(),
   agent: z.string().default("unknown"),
+  nextAgent: z.string().default(""),
   createdAt: z.string(),
   completed: z.array(z.string()).default([]),
   remaining: z.array(z.string()).default([]),
@@ -229,6 +230,7 @@ export const HandoffSchema = z.object({
   nextAction: z.string().default(""),
   memoryRefs: z.array(z.string()).default([]),
   designRules: z.array(z.string()).default([]),
+  decisions: z.array(z.string()).default([]),
   safetyNotes: z.array(z.string()).default([]),
 });
 export type Handoff = z.infer<typeof HandoffSchema>;
