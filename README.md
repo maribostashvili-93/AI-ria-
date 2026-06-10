@@ -1,7 +1,7 @@
 # AI RIA
 
 <div align="center">
-  <img src="./assets/airialogo.png" alt="AI RIA logo" width="180" />
+  <img src="./assets/airialogo.png" alt="AI RIA logo" width="280" />
 
   <h1>AI RIA</h1>
   <p><strong>Runtime Intelligence for AI Agents</strong></p>
