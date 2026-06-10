@@ -9,26 +9,4 @@ describe("MCP server (v0.1)", () => {
   });
 
   it("includes the current AI RIA tool surface", () => {
-    expect(MCP_TOOLS).toEqual(expect.arrayContaining([
-      "repo_scan",
-      "repo_analyze",
-      "context_compress",
-      "design_generate",
-      "figma_extract",
-      "figma_compare",
-      "security_scan",
-      "skill_run",
-      "memory_save",
-      "memory_search",
-      "memory_compress",
-      "handoff_create",
-      "handoff_load",
-      "design_recall",
-    ]));
-  });
-
-  it("constructs without connecting", () => {
-    const server = createServer();
-    expect(server).toBeDefined();
-  });
-});
+    expect(MCP_TOOLS).toEqual(expect.a

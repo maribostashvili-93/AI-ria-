@@ -55,3 +55,23 @@ export function compressEntries(entries: MemoryEntry[]): MemoryPack {
 export async function compressMemories(root: string): Promise<MemoryPack> {
   return compressEntries(await loadMemories(root));
 }
+
+/** Short memory — the compressed pack an agent reads first (.ria/memory/short-memory.md). */
+export async function buildShortMemory(root: string): Promise<string> {
+  const pack = await compressMemories(root);
+  return pack.markdown;
+}
+
+/** Deep memory — every entry in full, for agents that need complete history (.ria/memory/deep-memory.md). */
+export async function buildDeepMemory(root: string): Promise<string> {
+  const entries = await loadMemories(root);
+  const lines: string[] = ["# Project Memory (deep)", "", `${entries.length} entries, oldest first.`, ""];
+  for (const e of entries) {
+    lines.push(`## ${e.title}`, "", `- id: ${e.id} · type: ${e.type} · agent: ${e.agent} · ${e.createdAt}`);
+    if (e.tags.length) lines.push(`- tags: ${e.tags.join(", ")}`);
+    if (e.files.length) lines.push(`- files: ${e.files.join(", ")}`);
+    if (e.content) lines.push("", e.content);
+    lines.push("");
+  }
+  return lines.join("\n");
+}

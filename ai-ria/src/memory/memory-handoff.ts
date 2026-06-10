@@ -6,7 +6,8 @@ import { Handoff, HandoffSchema } from "../core/types.js";
 import { loadDesignMemory, loadMemories } from "./memory-store.js";
 
 export const HANDOFFS_DIR = "handoffs";
-export const LATEST_HANDOFF = "latest.json";
+export const LATEST_HANDOFF = "latest-handoff.json";
+export const HANDOFF_MD = "HANDOFF.md";
 const MAX_INJECTED_DECISIONS = 10;
 
 async function ensureHandoffsDir(root: string): Promise<string> {
@@ -73,6 +74,7 @@ export async function createHandoff(root: string, input: CreateHandoffInput): Pr
   const file = path.join(dir, `${handoff.id}.json`);
   await fs.writeFile(file, json, "utf8");
   await fs.writeFile(path.join(dir, LATEST_HANDOFF), json, "utf8");
+  await fs.writeFile(path.join(dir, HANDOFF_MD), handoffToMarkdown(handoff) + "\n", "utf8");
   return { handoff, file };
 }
 

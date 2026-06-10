@@ -44,7 +44,7 @@ export async function loadMemories(root: string): Promise<MemoryEntry[]> {
 }
 
 export interface AddMemoryInput {
-  type?: MemoryType;
+  type?: string;
   title: string;
   content?: string;
   files?: string[];

@@ -41,6 +41,43 @@ describe("agent intelligence upgrade commands", () => {
     await expect(fs.readFile(path.join(project, ".ria", "design-memory.json"), "utf8")).resolves.toContain("\"tokens\"");
   });
 
+  it("imports MCP-wrapped Figma export explicitly in mcp-export mode", async () => {
+    const project = await makeProjectCopy();
+    const mcpExport = path.join(project, "figma-mcp-export.json");
+    await fs.writeFile(
+      mcpExport,
+      JSON.stringify({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              id: "0:1",
+              name: "MCP Frame",
+              type: "FRAME",
+              cornerRadius: 10,
+              itemSpacing: 12,
+              fills: [{ type: "SOLID", color: { r: 0.49, g: 0.27, b: 0.92 } }],
+              children: [
+                {
+                  id: "0:2",
+                  name: "MCP Text",
+                  type: "TEXT",
+                  style: { fontFamily: "Inter", fontSize: 18 },
+                },
+              ],
+            }),
+          },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+
+    await runCli(["figma", "import", project, mcpExport, "--mcp-export"]);
+
+    await expect(fs.readFile(path.join(project, ".ria", "figma", "MCP_EXPORT_NORMALIZED.json"), "utf8")).resolves.toContain("\"type\": \"DOCUMENT\"");
+    await expect(fs.readFile(path.join(project, ".ria", "figma", "figma-tokens.json"), "utf8")).resolves.toContain("\"spacing\"");
+  });
+
   it("builds conversation compression and layered memory outputs", async () => {
     const project = await makeProjectCopy();
     const conversation = path.join(project, "conversation.txt");
