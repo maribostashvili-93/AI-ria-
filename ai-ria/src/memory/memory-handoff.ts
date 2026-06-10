@@ -3,8 +3,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { ensureRiaDir } from "../core/paths.js";
 import { Handoff, HandoffSchema } from "../core/types.js";
-import { loadMemories } from "./memory-store.js";
-import { loadDesignMemory } from "./memory-store.js";
+import { loadDesignMemory, loadMemories } from "./memory-store.js";
 
 export const HANDOFFS_DIR = "handoffs";
 export const LATEST_HANDOFF = "latest.json";
@@ -19,44 +18,54 @@ async function ensureHandoffsDir(root: string): Promise<string> {
 export interface CreateHandoffInput {
   task: string;
   agent?: string;
+  nextAgent?: string;
   completed?: string[];
   remaining?: string[];
   warnings?: string[];
   designRules?: string[];
+  changedFiles?: string[];
+  filesToAvoid?: string[];
+  risks?: string[];
+  nextAction?: string;
 }
 
-/**
- * Create `.ria/handoffs/<id>.json` (+ `latest.json`).
- * A handoff is a task-scoped view of memory: recent decisions and design
- * rules are injected automatically so the next agent starts fully informed.
- */
 export async function createHandoff(root: string, input: CreateHandoffInput): Promise<{ handoff: Handoff; file: string }> {
   const createdAt = new Date().toISOString();
   const hash = createHash("sha256").update(`${input.task}|${createdAt}`).digest("hex").slice(0, 8);
 
   const memories = await loadMemories(root);
   const decisions = memories
-    .filter((e) => e.type === "decision" || e.type === "architecture")
+    .filter((entry) => entry.type === "decision" || entry.type === "architecture-note")
     .slice(-MAX_INJECTED_DECISIONS)
-    .map((e) => `${e.decision}${e.reason ? ` — ${e.reason}` : ""}`);
+    .map((entry) => `${entry.title}${entry.content ? ` - ${entry.content}` : ""}`);
 
   const designMemory = await loadDesignMemory(root);
   const designRules = [...new Set([...(input.designRules ?? []), ...(designMemory?.rules ?? [])])];
-
+  const changedFiles = [...new Set([...(input.changedFiles ?? []), ...memories.flatMap((entry) => entry.files)])];
   const warnings = [
-    ...new Set([...(input.warnings ?? []), ...memories.filter((e) => e.type === "security").map((e) => e.decision)]),
+    ...new Set([
+      ...(input.warnings ?? []),
+      ...(input.filesToAvoid ?? []).map((file) => `Avoid: ${file}`),
+      ...(input.risks ?? []),
+      ...memories.filter((entry) => entry.type === "warning" || entry.type === "security-note").map((entry) => entry.title),
+    ]),
   ];
 
   const handoff = HandoffSchema.parse({
     id: `h-${createdAt.replace(/[-:T]/g, "").slice(0, 14)}-${hash}`,
     task: input.task,
     agent: input.agent ?? "unknown",
+    nextAgent: input.nextAgent ?? "",
     createdAt,
     completed: input.completed ?? [],
     remaining: input.remaining ?? [],
+    changedFiles,
     warnings,
+    nextAction: input.nextAction ?? "",
+    memoryRefs: memories.slice(-MAX_INJECTED_DECISIONS).map((entry) => entry.id),
     designRules,
     decisions,
+    safetyNotes: [...new Set(input.risks ?? [])],
   });
 
   const dir = await ensureHandoffsDir(root);
@@ -67,7 +76,6 @@ export async function createHandoff(root: string, input: CreateHandoffInput): Pr
   return { handoff, file };
 }
 
-/** Load a handoff — the latest by default, or a specific id. */
 export async function loadHandoff(root: string, id?: string): Promise<Handoff | null> {
   const dir = await ensureHandoffsDir(root);
   const name = id ? `${id}.json` : LATEST_HANDOFF;
@@ -78,19 +86,20 @@ export async function loadHandoff(root: string, id?: string): Promise<Handoff | 
   }
 }
 
-/** Render a handoff as agent-ready markdown so the next agent resumes instantly. */
-export function handoffToMarkdown(h: Handoff): string {
-  const section = (title: string, items: string[]) =>
-    items.length ? [`## ${title}`, "", ...items.map((i) => `- ${i}`), ""] : [];
+export function handoffToMarkdown(handoff: Handoff): string {
+  const section = (title: string, items: string[]) => (items.length ? [`## ${title}`, "", ...items.map((item) => `- ${item}`), ""] : []);
   return [
-    `# Handoff: ${h.task}`,
+    `# Handoff: ${handoff.task}`,
     "",
-    `From: ${h.agent} · ${h.createdAt} · id: ${h.id}`,
-    "",
-    ...section("Completed", h.completed),
-    ...section("Remaining", h.remaining),
-    ...section("Warnings", h.warnings),
-    ...section("Design Rules", h.designRules),
-    ...section("Previous Decisions", h.decisions),
+    `From: ${handoff.agent} | ${handoff.createdAt} | id: ${handoff.id}`,
+    ...(handoff.nextAgent ? [`Next agent: ${handoff.nextAgent}`, ""] : [""]),
+    ...section("Completed", handoff.completed),
+    ...section("Remaining", handoff.remaining),
+    ...section("Changed Files", handoff.changedFiles),
+    ...section("Warnings", handoff.warnings),
+    ...section("Design Rules", handoff.designRules),
+    ...section("Previous Decisions", handoff.decisions),
+    ...section("Safety Notes", handoff.safetyNotes),
+    ...(handoff.nextAction ? ["## Next Action", "", handoff.nextAction, ""] : []),
   ].join("\n");
 }

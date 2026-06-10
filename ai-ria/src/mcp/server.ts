@@ -190,7 +190,7 @@ export const MCP_TOOL_REGISTRY: ReadonlyArray<{ name: string; register: ToolRegi
         let memory = await loadDesignMemory(path);
         if (!memory) {
           const report = await analyzeDesign(path);
-          const designEntries = (await loadMemories(path)).filter((e) => e.type === "design");
+          const designEntries = (await loadMemories(path)).filter((e) => e.type === "design-rule");
           memory = await buildDesignMemory(path, report.tokens, designEntries);
         }
         return text(designMemoryToMarkdown(memory));
