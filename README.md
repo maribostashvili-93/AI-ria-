@@ -1,9 +1,8 @@
 # AI RIA
 
 <div align="center">
-  <img src="./assets/airialogo.png" alt="AI RIA logo" width="280" />
+  <img src="./assets/airialogo.png" alt="AI RIA logo" width="520" />
 
-  <h1>AI RIA</h1>
   <p><strong>Runtime Intelligence for AI Agents</strong></p>
   <p>
     Open-source infrastructure that gives AI coding agents
