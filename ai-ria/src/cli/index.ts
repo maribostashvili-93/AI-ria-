@@ -27,6 +27,7 @@ import { recordPackGeneration } from "../tokens/token-ledger.js";
 import { writeTokenReport, buildTokenSummary, tokenSummaryToMarkdown, comparePacks } from "../tokens/token-report.js";
 import { setBudget } from "../tokens/token-budget.js";
 import { fmt } from "../tokens/token-estimator.js";
+import { writeUiPlan, suggestDesign, agentBudgetSummary } from "../planning/ui-planner.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
 import { toJson } from "../output/json.js";
 import { repoMapToMarkdown, contextPackToMarkdown, securityToMarkdown, skillsToMarkdown } from "../output/markdown.js";
@@ -338,7 +339,7 @@ program
 
 const designCmd = program
   .command("design")
-  .description("v0.2 - DESIGN.md generator -> .ria/DESIGN.md (subcommands: recall, map)")
+  .description("v0.2 - DESIGN.md generator -> .ria/DESIGN.md (subcommands: recall, map, suggest)")
   .argument("[path]", "repository path", ".")
   .option("--json", "also print the token report as JSON")
   .action(async (path: string, opts: { json?: boolean }) => {
@@ -374,6 +375,17 @@ designCmd
   .action(async (component: string, files: string[], opts: { path: string }) => {
     const memoryData = await mapDesignComponent(opts.path, component, files);
     console.log(`${component} <-> ${memoryData.components[component].files.join(", ")}`);
+  });
+
+designCmd
+  .command("suggest")
+  .description("v0.2 - suggest a design direction for a goal -> design/DESIGN.md + VISUAL_AGENT_PACK.md + DESIGN_PACK.md")
+  .argument("[path]", "repository path", ".")
+  .requiredOption("--goal <goal>", "what is being built, e.g. \"LMS dashboard\"")
+  .action(async (path: string, opts: { goal: string }) => {
+    const { files, suggestion } = await suggestDesign(path, opts.goal);
+    done(files);
+    console.log(suggestion);
   });
 
 const designMd = program.command("design-md").description("v0.2 - DESIGN.md bridge (design.md-style structured docs)");
@@ -535,6 +547,51 @@ program
   .action(async () => {
     const { startServer } = await import("../mcp/server.js");
     await startServer();
+  });
+
+// ------------------------- ui/ux planning + orchestration -------------------------
+
+program
+  .command("plan-ui")
+  .description("v0.2 - New Project UI/UX Planning Mode -> design/{UI_PLAN.md,DESIGN.md,DESIGN_PACK.md} + agent-pack/VISUAL_AGENT_PACK.md + orchestration/agent-routing.json")
+  .argument("[path]", "repository path", ".")
+  .requiredOption("--goal <goal>", "what to build, e.g. \"Build dashboard UI for LMS platform\"")
+  .action(async (path: string, opts: { goal: string }) => {
+    const { plan, files } = await writeUiPlan(path, opts.goal);
+    done(files, `  type=${plan.projectType}, pages=${plan.pages.length}, components=${plan.components.length}, agents=${plan.agents.length}`);
+    console.log(`\nAgents:\n${agentBudgetSummary(plan)}`);
+  });
+
+program
+  .command("orchestrate")
+  .description("v0.4 - plan + compress + build all packs for the routed agents, then report tokens")
+  .argument("[path]", "repository path", ".")
+  .requiredOption("--goal <goal>", "the goal, e.g. \"Build dashboard UI from Figma\"")
+  .action(async (path: string, opts: { goal: string }) => {
+    const { plan } = await writeUiPlan(path, opts.goal);
+    console.log(`Plan: ${plan.projectType} | ${plan.pages.length} pages, ${plan.components.length} components`);
+    try {
+      const map = await scanRepo(path);
+      if (map.fileCount > 0) {
+        const pack = await buildContextPackV2(path, map, 12000);
+        await writeRiaFile(path, "context/context-pack.md", contextPackV2ToMarkdown(pack));
+        await writeRiaFile(path, "context/context-pack.json", toJson({ summary: pack.summary, files: pack.files }));
+        await writeRiaFile(path, "context/token-report.json", toJson(pack.report));
+        await recordPackGeneration(path, { agent: "any", task: opts.goal, pack: "context/context-pack.md", rawTokens: pack.report.rawTokens, compressedTokens: pack.report.compressedTokens });
+        console.log(`Context: ~${pack.report.compressedTokens} tokens (raw ~${pack.report.rawTokens})`);
+      }
+    } catch { /* empty project is fine */ }
+    await buildAgentPack(path);
+    for (const provider of ["claude", "codex", "compact"] as const) {
+      const r = await buildProviderPack(path, provider);
+      console.log(`${r.file.split(/[\\/]/).pop()}: ~${r.tokens} tokens (budget ${r.budget})`);
+    }
+    const { summary } = await writeTokenReport(path);
+    console.log(`\nRaw context: ${fmt(summary.totalRawTokens)} tokens`);
+    console.log(`Compressed context: ${fmt(summary.totalCompressedTokens)} tokens`);
+    console.log(`Saved: ${fmt(summary.totalSavedTokens)} tokens (${summary.savingsPercent}%)`);
+    console.log(`\nAgents:\n${agentBudgetSummary(plan)}`);
+    for (const w of summary.warnings) console.log(`WARNING: ${w}`);
   });
 
 // ------------------------- token accounting -------------------------
