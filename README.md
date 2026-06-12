@@ -36,7 +36,9 @@
 
 ## What It Is
 
-AI RIA is a CLI-first intelligence layer for multi-agent software workflows. It turns repositories, design signals, and prior agent work into reusable `.ria/` artifacts that save tokens and reduce repeated analysis.
+AI RIA is an Agent Intelligence Layer that compresses context, preserves memory, routes agents, converts Figma into DESIGN.md, and visualizes project memory, tokens, security, and design knowledge.
+
+It is a CLI-first intelligence layer for multi-agent software workflows: repositories, design signals, and prior agent work become reusable `.ria/` artifacts that save tokens and reduce repeated analysis. The target shape of the system is described in [Plugin System](./docs/PluginSystem.md).
 
 The goal is simple:
 
@@ -169,6 +171,8 @@ If it needs more memory:
 | Visual agent pack | `ria pack visual <project>` |
 | Security agent pack | `ria pack security <project>` |
 | Build knowledge graph | `ria graph build <project>` |
+| Visual memory chains | `ria visual memory <project>` |
+| Design graph | `ria visual graph <project>` |
 | Figma tokens to DESIGN.md | `ria figma to-design-md <project>` |
 
 ## Tokenless Figma Workflow
@@ -306,6 +310,7 @@ pnpm test
 | [Vision](./docs/Vision.md) | Why AI RIA exists |
 | [Architecture](./docs/Architecture.md) | System shape |
 | [Roadmap](./docs/Roadmap.md) | Versioned direction |
+| [Plugin System](./docs/PluginSystem.md) | Target plugin architecture + Studio dashboard plan |
 | [CLI README](./ai-ria/README.md) | Package-level usage |
 
 ## License

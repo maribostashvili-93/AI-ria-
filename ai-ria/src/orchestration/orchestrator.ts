@@ -118,6 +118,10 @@ export async function orchestrate(root: string, goal: string): Promise<Orchestra
 
   const { files: graphFiles } = await writeMemoryGraph(root);
   files.push(...graphFiles);
+  if (routedProviders.includes("visual")) {
+    const { writeVisualMemory } = await import("../visual/visual-memory.js");
+    files.push(...(await writeVisualMemory(root)).files);
+  }
 
   const result: OrchestrationResult = { plan, routedProviders, packs, securityFindings, contextTokens, files };
   files.push(await writeRiaFile(root, "orchestration/ORCHESTRATION.md", orchestrationToMarkdown(result)));

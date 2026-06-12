@@ -93,6 +93,7 @@ The agent gets the whole project's knowledge for a few hundred tokens instead of
 | v0.4 Role Packs | `ria pack visual <path>` / `ria pack security <path>` | `exports/VISUAL_CONTEXT.md` (design pack + Figma summary first, 10k) / `exports/SECURITY_CONTEXT.md` (severity-ordered findings first, 6k) |
 | v0.4 Orchestration | `ria orchestrate <path> --goal "..."` | routes agents by goal, builds exactly the packs they need (security pack triggers a fresh scan), writes `orchestration/ORCHESTRATION.md` + knowledge graph |
 | v0.4 Knowledge Graph | `ria graph build <path>` | `memory/memory-graph.{json,md}` — memories, agents, handoff, design as an importance-weighted Mermaid graph |
+| v0.4 Visual Memory | `ria visual memory <path>` / `ria visual graph <path>` | `visual/{visual-memory.json,component-map.json,VISUAL_MEMORY.md,design-graph.json}` — design decision → component → Figma node → code file → agent task chains (the data layer `ria studio` will render) |
 | v0.4 Figma Bridge | `ria figma to-design-md <path>` | imported Figma tokens -> structured `design/DESIGN.md`, merged back into design memory |
 | v0.2 Figma Import | `ria figma import <path> <tokens.json>` | `figma/figma-tokens.json`, `figma/FIGMA_SUMMARY.md` + merged into `design-memory.json` (colors, typography, spacing, radius, shadows, components) |
 | v0.2 Figma Codegen | `ria figma generate-code <path>` | `figma/generated/` — draft HTML/CSS + Tailwind suggestions (starter code, not production) |

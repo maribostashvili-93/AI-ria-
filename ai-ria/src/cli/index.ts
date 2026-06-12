@@ -22,6 +22,7 @@ import { buildMemoryLayers } from "../memory/layers.js";
 import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
 import { loadIndex, rebuildIndex } from "../memory/memory-index.js";
 import { writeMemoryGraph } from "../memory/memory-graph.js";
+import { writeVisualMemory, writeDesignGraph } from "../visual/visual-memory.js";
 import { buildAgentPack } from "../agentpack/agent-pack.js";
 import { buildProviderPack, Provider, PROVIDERS } from "../exports/provider-packs.js";
 import { recordPackGeneration } from "../tokens/token-ledger.js";
@@ -570,6 +571,32 @@ program
   .action(async () => {
     const { startServer } = await import("../mcp/server.js");
     await startServer();
+  });
+
+// ------------------------- visual memory -------------------------
+
+const visual = program.command("visual").description("v0.4 - Visual Memory: design decision -> component -> figma node -> code file -> agent task chains");
+
+visual
+  .command("memory")
+  .description("Build visual memory -> .ria/visual/{visual-memory.json,component-map.json,VISUAL_MEMORY.md,design-graph.json}")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print visual memory as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { memory, files } = await writeVisualMemory(path);
+    done(files, `  ${memory.stats.components} components | decisions=${memory.stats.withDecisions}, figma=${memory.stats.withFigma}, code=${memory.stats.withCode}, tasks=${memory.stats.withTask}`);
+    if (opts.json) console.log(toJson(memory));
+  });
+
+visual
+  .command("graph")
+  .description("Design graph only -> .ria/visual/{design-graph.json,DESIGN_GRAPH.md} (Mermaid)")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print the graph as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { graph, files } = await writeDesignGraph(path);
+    done(files, `  ${graph.stats.nodes} nodes, ${graph.stats.edges} edges, ${graph.stats.chains} chains`);
+    if (opts.json) console.log(toJson(graph));
   });
 
 // ------------------------- knowledge graph -------------------------
