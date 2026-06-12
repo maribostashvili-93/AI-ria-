@@ -165,6 +165,11 @@ If it needs more memory:
 | Build design pack | `ria design-pack <project>` |
 | Build agent pack | `ria agent-pack <project>` |
 | Run security scan | `ria security <project>` |
+| Orchestrate agents for a goal | `ria orchestrate <project> --goal "..."` |
+| Visual agent pack | `ria pack visual <project>` |
+| Security agent pack | `ria pack security <project>` |
+| Build knowledge graph | `ria graph build <project>` |
+| Figma tokens to DESIGN.md | `ria figma to-design-md <project>` |
 
 ## Tokenless Figma Workflow
 

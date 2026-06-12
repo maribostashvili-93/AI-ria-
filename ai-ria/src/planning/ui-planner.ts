@@ -45,11 +45,11 @@ async function readProjectDescription(root: string): Promise<string> {
 
 function pickAgents(template: ReturnType<typeof detectTemplate>): UiPlan["agents"] {
   const names = [
-    { name: "visual-agent", role: "Build UI from the visual pack and design rules", pack: "VISUAL_AGENT_PACK.md" },
+    { name: "visual-agent", role: "Build UI from the visual pack and design rules", pack: "VISUAL_CONTEXT.md" },
     { name: "claude", role: "Implement components, wiring, and logic (code agent)", pack: "CLAUDE_CONTEXT.md" },
   ];
   if (template.securityFlows.length) {
-    names.push({ name: "security-agent", role: `Review: ${template.securityFlows.join("; ")}`, pack: "CODEX_CONTEXT.md" });
+    names.push({ name: "security-agent", role: `Review: ${template.securityFlows.join("; ")}`, pack: "SECURITY_CONTEXT.md" });
   }
   names.push({ name: "compact", role: "Documentation and final summary pass", pack: "COMPACT_CONTEXT.md" });
   return names.map((a, i) => {
