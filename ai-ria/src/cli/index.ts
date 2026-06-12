@@ -651,6 +651,27 @@ program
     for (const w of summary.warnings) console.log(`WARNING: ${w}`);
   });
 
+// ------------------------- studio dashboard -------------------------
+
+program
+  .command("studio")
+  .description("v0.4 - AI RIA Studio: local dashboard over .ria/ (memory graph, routing, visual memory, tokens, security, handoffs)")
+  .argument("[path]", "repository path", ".")
+  .option("--port <n>", "port to listen on", "3333")
+  .action(async (path: string, opts: { port: string }) => {
+    const { startStudio } = await import("../studio/server.js");
+    try {
+      const { url } = await startStudio(path, { port: Number(opts.port) || 3333 });
+      console.log(`AI RIA Studio running at ${url}`);
+      console.log(`Project: ${path}`);
+      console.log("Press Ctrl+C to stop.");
+    } catch (e) {
+      console.error(`Could not start studio: ${e instanceof Error ? e.message : e}`);
+      console.error(`If the port is busy, try: ria studio ${path} --port 3434`);
+      process.exitCode = 1;
+    }
+  });
+
 // ------------------------- token accounting -------------------------
 
 const tokensCmd = program.command("tokens").description("v0.1 - Token Accounting Engine: measure usage and savings per agent, task, and pack");

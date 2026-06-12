@@ -273,8 +273,9 @@ AI RIA creates:
 
 ## Build Order
 
-1. **Visual Memory JSON + graph files** — `ria visual memory` / `ria visual graph` (the data layer Studio will read)
-2. **`ria studio` dashboard** — Next.js + React Flow over the `.ria/` JSON graph files
+1. ✅ **Visual Memory JSON + graph files** — `ria visual memory` / `ria visual graph` (the data layer Studio reads)
+2. ✅ **`ria studio` dashboard v1** — zero-dependency embedded server + SPA over live `/api/*` JSON (all 8 pages)
+3. **Studio v2** — Next.js + React Flow + Tailwind frontend on the same `/api/*` contract, once interactivity outgrows the embedded page
 
 ## Related Documents
 

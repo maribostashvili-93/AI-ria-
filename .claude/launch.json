@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "studio",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "ai-ria/src/cli/index.ts", "studio", "ai-ria/examples/sample-app", "--port", "3333"],
+      "port": 3333
+    }
+  ]
+}

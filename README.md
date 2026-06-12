@@ -173,6 +173,7 @@ If it needs more memory:
 | Build knowledge graph | `ria graph build <project>` |
 | Visual memory chains | `ria visual memory <project>` |
 | Design graph | `ria visual graph <project>` |
+| Studio dashboard | `ria studio <project>` → http://localhost:3333 |
 | Figma tokens to DESIGN.md | `ria figma to-design-md <project>` |
 
 ## Tokenless Figma Workflow
