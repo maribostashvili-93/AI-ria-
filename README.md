@@ -209,7 +209,7 @@ Generated outputs:
 
 ## Real Example
 
-AI RIA was tested on a real local project:
+AI RIA was tested on a real local project (last run: 2026-06-12):
 
 `C:\samushao\ფრონტ დველოპერი\app Hot post`
 
@@ -217,8 +217,8 @@ Commands run:
 
 ```bash
 ria analyze "C:\samushao\ფრონტ დველოპერი\app Hot post"
-ria agent-pack "C:\samushao\ფრონტ დველოპერი\app Hot post"
-ria design-pack "C:\samushao\ფრონტ დველოპერი\app Hot post"
+ria orchestrate "C:\samushao\ფრონტ დველოპერი\app Hot post" --goal "Build Hot post UI from Figma"
+ria studio "C:\samushao\ფრონტ დველოპერი\app Hot post"
 ```
 
 Observed output summary:
@@ -231,9 +231,14 @@ Observed output summary:
 | Design tokens | `28` |
 | Security findings | `71` |
 | Critical / High | `13` |
-| Context pack | `~11797` vs `~2590037 raw` |
-| Agent pack | `~585` vs `~86982 raw` |
-| Design pack | `~306` vs `~769 raw` |
+| Context pack | `~11878` vs `~2590037 raw` (ratio `0.0046`) |
+| Agent pack | `~3020` tokens |
+| Agent routing | `visual -> claude -> security -> compact` |
+| `VISUAL_CONTEXT.md` | `~3227` / 10000 budget |
+| `CLAUDE_CONTEXT.md` | `~3115` / 12000 budget |
+| `SECURITY_CONTEXT.md` | `~4379` / 6000 budget |
+| `COMPACT_CONTEXT.md` | `~2232` / 2500 budget |
+| Studio | all 8 pages served at `http://localhost:3434` |
 
 Token numbers are heuristic estimates (~4 chars/token for ASCII, denser for non-Latin text), not exact tokenizer counts — treat savings percentages as approximate.
 
@@ -255,6 +260,11 @@ Token numbers are heuristic estimates (~4 chars/token for ASCII, denser for non-
 ├── context-pack.md
 ├── design/
 │   └── DESIGN_PACK.md
+├── exports/
+│   ├── CLAUDE_CONTEXT.md
+│   ├── COMPACT_CONTEXT.md
+│   ├── SECURITY_CONTEXT.md
+│   └── VISUAL_CONTEXT.md
 ├── figma/
 │   ├── FIGMA_SUMMARY.md
 │   └── figma-tokens.json
@@ -265,8 +275,21 @@ Token numbers are heuristic estimates (~4 chars/token for ASCII, denser for non-
 │   ├── conversation-summary.json
 │   ├── conversation-summary.md
 │   ├── deep-memory.md
+│   ├── memory-graph.json
+│   ├── memory-graph.md
 │   ├── short-memory.md
 │   └── working-memory.md
+├── orchestration/
+│   ├── ORCHESTRATION.md
+│   └── agent-routing.json
+├── tokens/
+│   ├── TOKEN_REPORT.md
+│   └── token-summary.json
+├── visual/
+│   ├── VISUAL_MEMORY.md
+│   ├── component-map.json
+│   ├── design-graph.json
+│   └── visual-memory.json
 ├── repo-map.json
 ├── repo-summary.md
 ├── security-report.json
