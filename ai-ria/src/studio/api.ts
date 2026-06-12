@@ -40,9 +40,10 @@ async function overview(root: string) {
   const tokens = await buildTokenSummary(root);
   const visual = await buildVisualMemory(root);
   const figma = await loadFigmaTokenPack(root);
-  const routing = await readJson(root, "orchestration/agent-routing.json");
+  const routing = (await readJson(root, "orchestration/agent-routing.json")) as { agents?: unknown[] } | null;
   const severe = (security?.findings ?? []).filter((f) => f.severity === "critical" || f.severity === "high").length;
   return {
+    activeAgents: routing?.agents?.length ?? 0,
     generatedAt: new Date().toISOString(),
     memories: index.count,
     memoriesByType: index.byType,

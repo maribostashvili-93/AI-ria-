@@ -66,7 +66,31 @@ describe("ria studio (v0.4)", () => {
   it("reports project identity and 404s for unknown paths", async () => {
     const p = await (await get("/api/project")).json();
     expect(p.name).toContain("ria-studio-");
+    expect(p.version).toMatch(/^\d+\.\d+\.\d+/);
     expect((await get("/api/nope")).status).toBe(404);
     expect((await get("/etc/passwd")).status).toBe(404);
+  });
+
+  it("serves the brand logo discovered from assets/", async () => {
+    // monorepo layout: <repo>/assets/airialogo.png above the package
+    const res = await get("/logo");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/image\/(png|svg)/);
+    expect((await get("/favicon.ico")).status).toBe(200);
+  });
+
+  it("serves gsap from the package's own node_modules", async () => {
+    const res = await get("/vendor/gsap.min.js");
+    expect(res.status).toBe(200);
+    const js = await res.text();
+    expect(js).toContain("gsap");
+  });
+
+  it("ships branding and motion hooks in the shell", async () => {
+    const html = await (await get("/")).text();
+    expect(html).toContain("Agent Intelligence Layer");
+    expect(html).toContain('src="/vendor/gsap.min.js"');
+    expect(html).toContain("prefers-reduced-motion");
+    expect(html).toContain('id="splash"');
   });
 });
