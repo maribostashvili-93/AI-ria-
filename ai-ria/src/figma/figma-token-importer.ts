@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { writeRiaFile } from "../core/paths.js";
+import { readRiaFile, writeRiaFile } from "../core/paths.js";
 import { DesignToken } from "../core/types.js";
 import { buildDesignMemory } from "../memory/memory-store.js";
 import { extractFromFigmaFile } from "./client.js";
@@ -100,4 +100,56 @@ export async function importFigmaTokens(root: string, file: string): Promise<{ p
   const allTokens = [...pack.colors, ...pack.spacing, ...pack.radius, ...pack.shadows].map((t) => ({ ...t, source: "figma" }));
   await buildDesignMemory(root, allTokens, []);
   return { pack, files };
+}
+
+/** Load the previously imported token pack, or null if `ria figma import` has not run. */
+export async function loadFigmaTokenPack(root: string): Promise<FigmaTokenPack | null> {
+  const raw = await readRiaFile(root, "figma/figma-tokens.json");
+  if (!raw) return null;
+  try {
+    return FigmaTokenPackSchema.parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render the token pack as a structured DESIGN.md — the same section/`name: value`
+ * shape `ria design-md import` parses, so the file round-trips into design memory.
+ */
+export function figmaPackToDesignMd(pack: FigmaTokenPack): string {
+  const section = (title: string, tokens: DesignToken[]) =>
+    tokens.length ? [`## ${title}`, "", ...tokens.map((t) => `- ${t.name}: ${t.value}`), ""] : [];
+  return [
+    "# DESIGN.md — from Figma",
+    "",
+    `Source: ${pack.source} · imported ${pack.importedAt}`,
+    "",
+    ...section("Colors", pack.colors),
+    ...(pack.typography.length
+      ? ["## Typography", "", ...pack.typography.map((t) => `- ${t.name}: ${[t.fontFamily, t.fontSize ? `${t.fontSize}px` : ""].filter(Boolean).join(" ")}`), ""]
+      : []),
+    ...section("Spacing", pack.spacing),
+    ...section("Radius", pack.radius),
+    ...section("Shadows", pack.shadows),
+    ...(pack.components.length ? ["## Components", "", ...pack.components.map((c) => `- ${c.name}: ${c.type}`), ""] : []),
+    "## Do Not Change",
+    "",
+    "- Token values above come from Figma; change them in Figma and re-import, not in code",
+    "- Component names — they map 1:1 to design components",
+    "",
+  ].join("\n");
+}
+
+/**
+ * `ria figma to-design-md` — turn imported Figma tokens into .ria/design/DESIGN.md
+ * and merge its rules/tokens back into design memory.
+ */
+export async function figmaToDesignMd(root: string): Promise<{ file: string; pack: FigmaTokenPack }> {
+  const pack = await loadFigmaTokenPack(root);
+  if (!pack) throw new Error("No imported Figma tokens found. Run `ria figma import <path> <tokens.json>` first.");
+  const file = await writeRiaFile(root, "design/DESIGN.md", figmaPackToDesignMd(pack));
+  const { importDesignMd } = await import("../design/designmd.js");
+  await importDesignMd(root, file);
+  return { file, pack };
 }

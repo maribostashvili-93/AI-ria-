@@ -90,6 +90,12 @@ The agent gets the whole project's knowledge for a few hundred tokens instead of
 | v0.1 Handoff | `ria handoff load <path>` | prints the latest handoff as agent-ready markdown |
 | v0.1 Agent Pack | `ria agent-pack <path>` | `agent-pack/AGENT_PACK.md` + `agent-pack.json` — combines context, short memory, handoff, design pack, security warnings |
 | v0.1 Provider Packs | `ria pack claude\|cursor\|codex\|compact <path>` | `exports/<PROVIDER>_CONTEXT.md` — per-agent token budgets (12k/8k/6k/2.5k); always says what was removed |
+| v0.4 Role Packs | `ria pack visual <path>` / `ria pack security <path>` | `exports/VISUAL_CONTEXT.md` (design pack + Figma summary first, 10k) / `exports/SECURITY_CONTEXT.md` (severity-ordered findings first, 6k) |
+| v0.4 Orchestration | `ria orchestrate <path> --goal "..."` | routes agents by goal, builds exactly the packs they need (security pack triggers a fresh scan), writes `orchestration/ORCHESTRATION.md` + knowledge graph |
+| v0.4 Knowledge Graph | `ria graph build <path>` | `memory/memory-graph.{json,md}` — memories, agents, handoff, design as an importance-weighted Mermaid graph |
+| v0.4 Visual Memory | `ria visual memory <path>` / `ria visual graph <path>` | `visual/{visual-memory.json,component-map.json,VISUAL_MEMORY.md,design-graph.json}` — design decision → component → Figma node → code file → agent task chains (the data layer `ria studio` renders) |
+| v0.4 Studio | `ria studio <path> [--port 3333]` | local dashboard at `http://localhost:3333` — Overview, Memory Graph, Agent Routing, Visual Memory, Figma Design, Token Usage, Security, Handoffs; zero extra dependencies, live `/api/*` JSON over `.ria/` |
+| v0.4 Figma Bridge | `ria figma to-design-md <path>` | imported Figma tokens -> structured `design/DESIGN.md`, merged back into design memory |
 | v0.2 Figma Import | `ria figma import <path> <tokens.json>` | `figma/figma-tokens.json`, `figma/FIGMA_SUMMARY.md` + merged into `design-memory.json` (colors, typography, spacing, radius, shadows, components) |
 | v0.2 Figma Codegen | `ria figma generate-code <path>` | `figma/generated/` — draft HTML/CSS + Tailwind suggestions (starter code, not production) |
 | v0.2 DESIGN.md Bridge | `ria design-md import <path> <DESIGN.md>` / `ria design-pack <path>` | rules + tokens into design memory; `design/DESIGN_PACK.md` for UI agents |

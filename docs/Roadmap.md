@@ -191,4 +191,4 @@ Design Memory + Security Brain combined: RIA detects design-system deviations an
 
 ## Related Documents
 
-- [Vision](Vision.md) · [Architecture](Architecture.md) · [Principles](Principles.md)
+- [Vision](Vision.md) · [Architecture](Architecture.md) · [Principles](Principles.md) · [Plugin System](PluginSystem.md)

@@ -12,7 +12,7 @@ import { buildUiFixSuggestions, suggestionsToPatch, suggestionsToReport } from "
 import { listSkills, runSkill } from "../skills/registry.js";
 import { FigmaClient, extractFromFigmaFile, figmaSummaryMarkdown } from "../figma/client.js";
 import { compareFigmaToCode, diffToMarkdown } from "../figma/compare.js";
-import { importFigmaTokens } from "../figma/figma-token-importer.js";
+import { importFigmaTokens, figmaToDesignMd } from "../figma/figma-token-importer.js";
 import { generateFigmaCode } from "../figma/figma-codegen.js";
 import { addMemory, loadMemories, buildDesignMemory, loadDesignMemory, mapDesignComponent, designMemoryToMarkdown } from "../memory/memory-store.js";
 import { searchMemories, hitsToMarkdown } from "../memory/memory-search.js";
@@ -22,13 +22,15 @@ import { buildMemoryLayers } from "../memory/layers.js";
 import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
 import { loadIndex, rebuildIndex } from "../memory/memory-index.js";
 import { writeMemoryGraph } from "../memory/memory-graph.js";
+import { writeVisualMemory, writeDesignGraph } from "../visual/visual-memory.js";
 import { buildAgentPack } from "../agentpack/agent-pack.js";
-import { buildProviderPack, Provider } from "../exports/provider-packs.js";
+import { buildProviderPack, Provider, PROVIDERS } from "../exports/provider-packs.js";
 import { recordPackGeneration } from "../tokens/token-ledger.js";
 import { writeTokenReport, buildTokenSummary, tokenSummaryToMarkdown, comparePacks } from "../tokens/token-report.js";
 import { setBudget } from "../tokens/token-budget.js";
 import { fmt } from "../tokens/token-estimator.js";
 import { writeUiPlan, suggestDesign, agentBudgetSummary } from "../planning/ui-planner.js";
+import { orchestrate } from "../orchestration/orchestrator.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
 import { toJson } from "../output/json.js";
 import { repoMapToMarkdown, contextPackToMarkdown, securityToMarkdown, skillsToMarkdown } from "../output/markdown.js";
@@ -336,11 +338,11 @@ program
 program
   .command("pack")
   .description("Provider export packs with per-agent token budgets -> .ria/exports/<PROVIDER>_CONTEXT.md")
-  .argument("<provider>", "claude | cursor | codex | compact")
+  .argument("<provider>", PROVIDERS.join(" | "))
   .argument("[path]", "repository path", ".")
   .action(async (provider: string, path: string) => {
-    if (!["claude", "cursor", "codex", "compact"].includes(provider)) {
-      console.error(`Unknown provider "${provider}". Use: claude, cursor, codex, compact.`);
+    if (!PROVIDERS.includes(provider as Provider)) {
+      console.error(`Unknown provider "${provider}". Use: ${PROVIDERS.join(", ")}.`);
       process.exitCode = 1;
       return;
     }
@@ -443,6 +445,15 @@ figma
   .action(async (path: string, file: string) => {
     const { pack, files } = await importFigmaTokens(path, file);
     done(files, `  colors=${pack.colors.length}, typography=${pack.typography.length}, spacing=${pack.spacing.length}, radius=${pack.radius.length}, shadows=${pack.shadows.length}, components=${pack.components.length}`);
+  });
+
+figma
+  .command("to-design-md")
+  .description("Imported Figma tokens -> structured .ria/design/DESIGN.md (rules + tokens merged into design memory)")
+  .argument("[path]", "repository path", ".")
+  .action(async (path: string) => {
+    const { file, pack } = await figmaToDesignMd(path);
+    done([file], `  colors=${pack.colors.length}, typography=${pack.typography.length}, spacing=${pack.spacing.length}, components=${pack.components.length}`);
   });
 
 figma
@@ -562,6 +573,47 @@ program
     await startServer();
   });
 
+// ------------------------- visual memory -------------------------
+
+const visual = program.command("visual").description("v0.4 - Visual Memory: design decision -> component -> figma node -> code file -> agent task chains");
+
+visual
+  .command("memory")
+  .description("Build visual memory -> .ria/visual/{visual-memory.json,component-map.json,VISUAL_MEMORY.md,design-graph.json}")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print visual memory as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { memory, files } = await writeVisualMemory(path);
+    done(files, `  ${memory.stats.components} components | decisions=${memory.stats.withDecisions}, figma=${memory.stats.withFigma}, code=${memory.stats.withCode}, tasks=${memory.stats.withTask}`);
+    if (opts.json) console.log(toJson(memory));
+  });
+
+visual
+  .command("graph")
+  .description("Design graph only -> .ria/visual/{design-graph.json,DESIGN_GRAPH.md} (Mermaid)")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print the graph as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { graph, files } = await writeDesignGraph(path);
+    done(files, `  ${graph.stats.nodes} nodes, ${graph.stats.edges} edges, ${graph.stats.chains} chains`);
+    if (opts.json) console.log(toJson(graph));
+  });
+
+// ------------------------- knowledge graph -------------------------
+
+const graphCmd = program.command("graph").description("v0.4 - Project knowledge graph built from memory, agents, handoff and design");
+
+graphCmd
+  .command("build")
+  .description("Build the graph -> .ria/memory/memory-graph.{json,md} (Mermaid thought web, importance-weighted)")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print the graph as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { graph, files } = await writeMemoryGraph(path);
+    done(files, `  ${graph.stats.nodes} nodes, ${graph.stats.edges} edges, ${graph.stats.agents} agents`);
+    if (opts.json) console.log(toJson(graph));
+  });
+
 // ------------------------- ui/ux planning + orchestration -------------------------
 
 program
@@ -577,26 +629,17 @@ program
 
 program
   .command("orchestrate")
-  .description("v0.4 - plan + compress + build all packs for the routed agents, then report tokens")
+  .description("v0.4 - plan, route agents, build exactly the packs they need (visual/security included) -> .ria/orchestration/ORCHESTRATION.md")
   .argument("[path]", "repository path", ".")
   .requiredOption("--goal <goal>", "the goal, e.g. \"Build dashboard UI from Figma\"")
   .action(async (path: string, opts: { goal: string }) => {
-    const { plan } = await writeUiPlan(path, opts.goal);
+    const result = await orchestrate(path, opts.goal);
+    const { plan } = result;
     console.log(`Plan: ${plan.projectType} | ${plan.pages.length} pages, ${plan.components.length} components`);
-    try {
-      const map = await scanRepo(path);
-      if (map.fileCount > 0) {
-        const pack = await buildContextPackV2(path, map, 12000);
-        await writeRiaFile(path, "context/context-pack.md", contextPackV2ToMarkdown(pack));
-        await writeRiaFile(path, "context/context-pack.json", toJson({ summary: pack.summary, files: pack.files }));
-        await writeRiaFile(path, "context/token-report.json", toJson(pack.report));
-        await recordPackGeneration(path, { agent: "any", task: opts.goal, pack: "context/context-pack.md", rawTokens: pack.report.rawTokens, compressedTokens: pack.report.compressedTokens });
-        console.log(`Context: ~${pack.report.compressedTokens} tokens (raw ~${pack.report.rawTokens})`);
-      }
-    } catch { /* empty project is fine */ }
-    await buildAgentPack(path);
-    for (const provider of ["claude", "codex", "compact"] as const) {
-      const r = await buildProviderPack(path, provider);
+    console.log(`Routing: ${result.routedProviders.join(" -> ")}`);
+    if (result.contextTokens) console.log(`Context: ~${result.contextTokens.compressed} tokens (raw ~${result.contextTokens.raw})`);
+    if (result.routedProviders.includes("security")) console.log(`Security scan: ${result.securityFindings} finding(s)`);
+    for (const r of result.packs) {
       console.log(`${r.file.split(/[\\/]/).pop()}: ~${r.tokens} tokens (budget ${r.budget})`);
     }
     const { summary } = await writeTokenReport(path);
@@ -604,7 +647,29 @@ program
     console.log(`Compressed context: ${fmt(summary.totalCompressedTokens)} tokens`);
     console.log(`Saved: ${fmt(summary.totalSavedTokens)} tokens (${summary.savingsPercent}%)`);
     console.log(`\nAgents:\n${agentBudgetSummary(plan)}`);
+    console.log(`\nPlan written: .ria/orchestration/ORCHESTRATION.md`);
     for (const w of summary.warnings) console.log(`WARNING: ${w}`);
+  });
+
+// ------------------------- studio dashboard -------------------------
+
+program
+  .command("studio")
+  .description("v0.4 - AI RIA Studio: local dashboard over .ria/ (memory graph, routing, visual memory, tokens, security, handoffs)")
+  .argument("[path]", "repository path", ".")
+  .option("--port <n>", "port to listen on", "3333")
+  .action(async (path: string, opts: { port: string }) => {
+    const { startStudio } = await import("../studio/server.js");
+    try {
+      const { url } = await startStudio(path, { port: Number(opts.port) || 3333 });
+      console.log(`AI RIA Studio running at ${url}`);
+      console.log(`Project: ${path}`);
+      console.log("Press Ctrl+C to stop.");
+    } catch (e) {
+      console.error(`Could not start studio: ${e instanceof Error ? e.message : e}`);
+      console.error(`If the port is busy, try: ria studio ${path} --port 3434`);
+      process.exitCode = 1;
+    }
   });
 
 // ------------------------- token accounting -------------------------
