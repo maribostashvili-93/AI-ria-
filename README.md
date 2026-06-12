@@ -160,6 +160,7 @@ If it needs more memory:
 | Generate short memory | `ria memory short <project>` |
 | Generate working memory | `ria memory working <project>` |
 | Generate deep memory | `ria memory deep <project>` |
+| Build memory graph | `ria memory graph <project>` |
 | Create handoff | `ria handoff create <project> ...` |
 | Build design pack | `ria design-pack <project>` |
 | Build agent pack | `ria agent-pack <project>` |
@@ -223,6 +224,8 @@ Observed output summary:
 | Context pack | `~11797` vs `~2590037 raw` |
 | Agent pack | `~585` vs `~86982 raw` |
 | Design pack | `~306` vs `~769 raw` |
+
+Token numbers are heuristic estimates (~4 chars/token for ASCII, denser for non-Latin text), not exact tokenizer counts — treat savings percentages as approximate.
 
 ## `.ria/` Output Example
 

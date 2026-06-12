@@ -176,6 +176,8 @@ export const MemoryEntrySchema = z.object({
   files: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
   agent: z.string().default("unknown"),
+  /** 1-10; how much the next agent should care (memory graph node weight) */
+  importance: z.number().int().min(1).max(10).default(5),
   createdAt: z.string(),
 });
 export type MemoryEntry = z.infer<typeof MemoryEntrySchema>;

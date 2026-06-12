@@ -50,6 +50,23 @@ export interface AddMemoryInput {
   files?: string[];
   tags?: string[];
   agent?: string;
+  importance?: number;
+}
+
+/** Default node weight per memory type when the caller does not set one. */
+function defaultImportance(type: MemoryType): number {
+  switch (type) {
+    case "warning":
+    case "security-note":
+      return 8;
+    case "decision":
+    case "architecture-note":
+      return 7;
+    case "design-rule":
+      return 6;
+    default:
+      return 5;
+  }
 }
 
 function normalizeMemoryType(type?: string): MemoryType {
@@ -81,14 +98,16 @@ function normalizeMemoryType(type?: string): MemoryType {
 export async function addMemory(root: string, input: AddMemoryInput): Promise<MemoryEntry> {
   const createdAt = new Date().toISOString();
   const hash = createHash("sha256").update(`${input.title}|${input.content ?? ""}|${createdAt}`).digest("hex").slice(0, 10);
+  const type = normalizeMemoryType(input.type);
   const entry = MemoryEntrySchema.parse({
     id: `mem_${hash}`,
-    type: normalizeMemoryType(input.type),
+    type,
     title: input.title,
     content: input.content ?? "",
     files: input.files ?? [],
     tags: input.tags ?? [],
     agent: input.agent ?? "unknown",
+    importance: input.importance ?? defaultImportance(type),
     createdAt,
   });
   await fs.appendFile(await memoriesFile(root), JSON.stringify(entry) + "\n", "utf8");

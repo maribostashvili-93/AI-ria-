@@ -21,6 +21,7 @@ describe("MCP server (v0.1)", () => {
       "memory_save",
       "memory_search",
       "memory_compress",
+      "memory_graph",
       "handoff_create",
       "handoff_load",
       "design_recall",

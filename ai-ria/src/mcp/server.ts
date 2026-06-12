@@ -12,7 +12,8 @@ import { FigmaClient, extractFromFigmaFile } from "../figma/client.js";
 import { compareFigmaToCode, diffToMarkdown } from "../figma/compare.js";
 import { saveMemory, buildDesignMemory, loadDesignMemory, designMemoryToMarkdown } from "../memory/memory-store.js";
 import { searchMemories, hitsToMarkdown } from "../memory/memory-search.js";
-import { compressMemories } from "../memory/memory-compress.js";
+import { compressMemories } from "../memory/memory-compressor.js";
+import { buildMemoryGraph, graphToMermaid } from "../memory/memory-graph.js";
 import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
 import { loadMemories } from "../memory/memory-store.js";
 
@@ -148,6 +149,15 @@ export const MCP_TOOL_REGISTRY: ReadonlyArray<{ name: string; register: ToolRegi
       server.tool("memory_compress", "Distill all project memories into one compact markdown pack (decisions kept, noise dropped)", pathArg, async ({ path }) => {
         const pack = await compressMemories(path);
         return text(pack.markdown);
+      });
+    },
+  },
+  {
+    name: "memory_graph",
+    register: (server) => {
+      server.tool("memory_graph", "Build the project memory graph (memories, agents, handoff, design as nodes/edges) and return it as a Mermaid diagram", pathArg, async ({ path }) => {
+        const graph = await buildMemoryGraph(path);
+        return text(graphToMermaid(graph));
       });
     },
   },

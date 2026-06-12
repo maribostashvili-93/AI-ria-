@@ -5,9 +5,17 @@ import {
   CompressedContext, CompressedContextSchema, ContextFile, ContextPack, ContextPackSchema, RepoMap,
 } from "../core/types.js";
 
-/** Rough token estimate: ~4 characters per token. */
+/**
+ * Rough token estimate. ASCII averages ~4 chars per token; non-ASCII text
+ * (Georgian, CJK, emoji, …) tokenizes far denser — ~1.5 chars per token on
+ * cl100k-class vocabularies. Still a heuristic, not a real tokenizer.
+ */
 export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
+  let nonAscii = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) > 127) nonAscii++;
+  }
+  return Math.ceil((text.length - nonAscii) / 4 + nonAscii / 1.5);
 }
 
 /** Estimate tokens an agent would spend reading the entire repo raw. */

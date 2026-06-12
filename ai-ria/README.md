@@ -85,6 +85,7 @@ The agent gets the whole project's knowledge for a few hundred tokens instead of
 | v0.1 Agent Memory | `ria memory search <path> "query"` / `ria memory list <path>` | search/list over project memory |
 | v0.1 Agent Memory | `ria memory short <path>` / `ria memory deep <path>` / `ria memory compress <path>` | `memory/short-memory.md`, `working-memory.md`, `deep-memory.md`, `summary.md` |
 | v0.1 Agent Memory | `ria memory compress-conversation <path> <file>` | `memory/conversation-summary.md` + decisions/warnings saved as memories (claude-mem-style observe→compress→store) |
+| v0.1 Agent Memory | `ria memory graph <path>` | `memory/memory-graph.json`, `memory/memory-graph.md` — memories, agents, handoff and design memory as a Mermaid thought web (importance-weighted nodes) |
 | v0.1 Handoff | `ria handoff create <path> --task "..." [--completed a,b] [--remaining c] [--avoid payment.js] [--next-action "..."]` | `handoffs/latest-handoff.json`, `handoffs/HANDOFF.md` — memory decisions and design rules injected automatically |
 | v0.1 Handoff | `ria handoff load <path>` | prints the latest handoff as agent-ready markdown |
 | v0.1 Agent Pack | `ria agent-pack <path>` | `agent-pack/AGENT_PACK.md` + `agent-pack.json` — combines context, short memory, handoff, design pack, security warnings |

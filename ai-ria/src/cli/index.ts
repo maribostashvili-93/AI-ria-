@@ -21,6 +21,7 @@ import { compressConversation, conversationSummaryToMarkdown } from "../memory/c
 import { buildMemoryLayers } from "../memory/layers.js";
 import { createHandoff, loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
 import { loadIndex, rebuildIndex } from "../memory/memory-index.js";
+import { writeMemoryGraph } from "../memory/memory-graph.js";
 import { buildAgentPack } from "../agentpack/agent-pack.js";
 import { buildProviderPack, Provider } from "../exports/provider-packs.js";
 import { recordPackGeneration } from "../tokens/token-ledger.js";
@@ -167,9 +168,10 @@ memory
   .option("--files <files>", "comma-separated related files")
   .option("--tags <tags>", "comma-separated tags")
   .option("--agent <agent>", "which agent is remembering (claude, cursor, codex, ...)")
+  .option("--importance <n>", "1-10 node weight in the memory graph (defaults per type)")
   .option("--json", "print the saved entry as JSON")
-  .action(async (path: string, opts: { title: string; content?: string; type?: string; files?: string; tags?: string; agent?: string; json?: boolean }) => {
-    const entry = await addMemory(path, { title: opts.title, content: opts.content, type: opts.type as never, files: csv(opts.files), tags: csv(opts.tags), agent: opts.agent });
+  .action(async (path: string, opts: { title: string; content?: string; type?: string; files?: string; tags?: string; agent?: string; importance?: string; json?: boolean }) => {
+    const entry = await addMemory(path, { title: opts.title, content: opts.content, type: opts.type as never, files: csv(opts.files), tags: csv(opts.tags), agent: opts.agent, importance: opts.importance ? Number(opts.importance) : undefined });
     console.log(`Saved ${entry.id} [${entry.type}] ${entry.title}`);
     if (opts.json) console.log(toJson(entry));
   });
@@ -229,6 +231,17 @@ memory
     const pack = await compressMemories(path);
     done([await writeRiaFile(path, "memory/summary.md", pack.markdown)], `  ${pack.entryCount} entries -> ~${pack.tokenEstimate} tokens (raw ~${pack.originalTokenEstimate}, ratio ${pack.compressionRatio})`);
     if (opts.json) console.log(toJson(pack));
+  });
+
+memory
+  .command("graph")
+  .description("Memory graph - memories, agents, handoff and design as a thought web -> .ria/memory/memory-graph.{json,md}")
+  .argument("[path]", "repository path", ".")
+  .option("--json", "print the graph as JSON")
+  .action(async (path: string, opts: { json?: boolean }) => {
+    const { graph, files } = await writeMemoryGraph(path);
+    done(files, `  ${graph.stats.nodes} nodes, ${graph.stats.edges} edges, ${graph.stats.agents} agents`);
+    if (opts.json) console.log(toJson(graph));
   });
 
 memory
