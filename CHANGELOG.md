@@ -6,6 +6,32 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Project inference.** `plan-ui` and `orchestrate` now derive the plan from
+  the repository instead of a keyword template: routes become pages, existing
+  component files become components to reuse rather than rebuild, the project's
+  own CSS custom properties become the palette, and dependencies and file paths
+  decide which flows need a security review (`stripe` → payments, `next-auth` →
+  sessions, `prisma` → personal data). The template is now a fallback that
+  carries greenfield projects only. Every plan records the source of each part
+  (`repository routes` vs `template`) in `UI_PLAN.md`, `agent-routing.json` and
+  the CLI output, so it can be audited rather than trusted.
+
+### Changed
+
+- Template matching weighs the goal above the project description and matches
+  whole words. A README mentioning "dashboard" or "platform" used to outvote the
+  goal the user typed, and `crm` matched inside `crumbs`.
+- `orchestrate` scans the repository once and shares the map with planning,
+  compression and the security pass.
+
+### Fixed
+
+- CI could not install: pnpm 11 requires Node >= 22.13 while the workflow pinned
+  Node 20 to match `engines`. Now installs with pnpm 10 and runs the full verify
+  across a Node 20 + 22 matrix, so the declared minimum is actually tested.
+
 ## [0.2.0] — 2026-07-29
 
 First public release.

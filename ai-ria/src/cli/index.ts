@@ -642,6 +642,12 @@ program
   .action(async (path: string, opts: { goal: string }) => {
     const { plan, files } = await writeUiPlan(path, opts.goal);
     done(files, `  type=${plan.projectType}, pages=${plan.pages.length}, components=${plan.components.length}, agents=${plan.agents.length}`);
+    console.log(`\nDerived from:`);
+    console.log(`  project type:    ${plan.sources.projectType}`);
+    console.log(`  pages:           ${plan.sources.pages}`);
+    console.log(`  components:      ${plan.sources.components}${plan.existingComponents.length ? ` (${plan.existingComponents.length} existing to reuse)` : ""}`);
+    console.log(`  palette:         ${plan.sources.palette}`);
+    console.log(`  security flows:  ${plan.sources.securityFlows}`);
     console.log(`\nAgents:\n${agentBudgetSummary(plan)}`);
   });
 
@@ -654,6 +660,8 @@ program
     const result = await orchestrate(path, opts.goal);
     const { plan } = result;
     console.log(`Plan: ${plan.projectType} | ${plan.pages.length} pages, ${plan.components.length} components`);
+    console.log(`Derived from: pages=${plan.sources.pages}, components=${plan.sources.components}, palette=${plan.sources.palette}, security=${plan.sources.securityFlows}`);
+    if (plan.existingComponents.length) console.log(`Existing components to reuse: ${plan.existingComponents.length}`);
     console.log(`Routing: ${result.routedProviders.join(" -> ")}`);
     if (result.contextTokens) console.log(`Context: ~${result.contextTokens.compressed} tokens (raw ~${result.contextTokens.raw})`);
     if (result.routedProviders.includes("security")) console.log(`Security scan: ${result.securityFindings} finding(s)`);

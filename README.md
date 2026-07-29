@@ -9,7 +9,7 @@
     <a href="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml"><img src="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
-    <img src="https://img.shields.io/badge/tests-105%20passing-brightgreen" alt="105 tests" />
+    <img src="https://img.shields.io/badge/tests-114%20passing-brightgreen" alt="114 tests" />
   </p>
 
   <p>
@@ -50,6 +50,7 @@ your-project/
 | **Provider packs** | The same knowledge at each agent's token budget (Claude 12k, Cursor 8k, Codex 6k, compact 2.5k), always stating what was dropped |
 | **Figma bridge** | Design tokens from the Figma API *or* from plugin/MCP exports with no token at all |
 | **Security intelligence** | Secrets, unsafe commands, prompt injection in agent-instruction files — report only, never executed |
+| **Project inference** | Plans are derived from the repo — its routes, components, design tokens and dependencies — with the source of every part recorded |
 | **Studio** | A local dashboard over `.ria/`: memory graph, routing, tokens, security, handoffs |
 
 Everything is deterministic. **AI RIA makes no LLM calls** — no API key, no
@@ -116,13 +117,22 @@ Plans the work, routes it across agents, and builds exactly the packs those
 agents need:
 
 ```text
-Plan: saas-dashboard | 6 pages, 8 components
+Plan: saas-dashboard | 6 pages, 11 components
+Derived from: pages=template, components=repository + template,
+              palette=project design tokens, security=repository evidence + template
+Existing components to reuse: 52
 Routing: visual -> claude -> security -> compact
-VISUAL_CONTEXT.md:   ~2927 tokens (budget 10000)
-CLAUDE_CONTEXT.md:   ~2815 tokens (budget 12000)
-SECURITY_CONTEXT.md: ~2977 tokens (budget 6000)
+VISUAL_CONTEXT.md:   ~2930 tokens (budget 10000)
+CLAUDE_CONTEXT.md:   ~2818 tokens (budget 12000)
+SECURITY_CONTEXT.md: ~2980 tokens (budget 6000)
 COMPACT_CONTEXT.md:  ~1933 tokens (budget 2500)
 ```
+
+**The plan is read out of the repository, not guessed.** Routes become pages,
+existing component files become components to reuse rather than rebuild, the
+project's own CSS custom properties become the palette, and dependencies decide
+which flows need a security review (`stripe` → payments, `next-auth` → sessions).
+Every line of the plan records where it came from, so it can be argued with.
 
 ### See it
 
@@ -277,10 +287,11 @@ security scanning, token accounting, Studio, MCP server.
 
 Known limits, stated plainly:
 
-- **Planning is keyword-based.** `plan-ui` and `orchestrate` match a goal
-  against five built-in project templates (LMS, e-commerce, SaaS dashboard,
-  landing, finance). It is a useful starting scaffold, not project-shape
-  inference. This is the biggest open area — see [Contributing](./CONTRIBUTING.md).
+- **Planning templates still cover greenfield projects.** For an existing
+  repository the plan is inferred from it (see below). For a project with no
+  code yet, `plan-ui` falls back to one of five built-in templates (LMS,
+  e-commerce, SaaS dashboard, landing, finance) chosen by keyword — a useful
+  scaffold, but a scaffold. Every plan states which parts came from which.
 - **Token counts are estimates**, not tokenizer output.
 - **Security rules are regex-based** — good for secrets, unsafe commands and
   prompt injection in agent files; not a replacement for a real SAST tool.
@@ -293,7 +304,7 @@ See [Roadmap](./docs/Roadmap.md) for where it goes next.
 ```bash
 cd ai-ria
 pnpm install
-pnpm run verify      # typecheck + lint + 105 tests
+pnpm run verify      # typecheck + lint + 114 tests
 pnpm run build
 ```
 

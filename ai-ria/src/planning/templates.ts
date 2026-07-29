@@ -259,14 +259,54 @@ export const GENERIC_TEMPLATE: ProjectTemplate = {
   securityFlows: ["Authentication"],
 };
 
-/** Pick the best template for a goal/description by keyword score. */
-export function detectTemplate(text: string): ProjectTemplate {
-  const lower = text.toLowerCase();
-  let best: { t: ProjectTemplate; score: number } | null = null;
-  for (const t of PROJECT_TEMPLATES) {
-    const exactTypeBonus = lower.includes(t.type) ? 3 : 0;
-    const score = exactTypeBonus + t.keywords.reduce((s, k) => s + (lower.includes(k) ? 1 : 0), 0);
-    if (score > 0 && (!best || score > best.score)) best = { t, score };
+export interface TemplateMatch {
+  template: ProjectTemplate;
+  score: number;
+  /** Keywords that matched, so the plan can explain itself. */
+  matched: string[];
+  /** `fallback` means nothing matched and the generic template was used. */
+  confidence: "strong" | "weak" | "fallback";
+}
+
+/** Whole-word match, so "use" does not match "because" and "crm" not "crumb". */
+function countMatches(haystack: string, needle: string): number {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return haystack.match(new RegExp(`\\b${escaped}\\b`, "g"))?.length ?? 0;
+}
+
+/**
+ * Score templates against the goal and, secondarily, the project description.
+ *
+ * The goal is what the user actually asked for, so it weighs far more than a
+ * README blurb — otherwise a long README mentioning "platform" or "dashboard"
+ * quietly outvotes the goal the user typed.
+ */
+export function matchTemplate(goal: string, description = ""): TemplateMatch {
+  const goalText = ` ${goal.toLowerCase()} `;
+  const descriptionText = ` ${description.toLowerCase()} `;
+  const GOAL_WEIGHT = 4;
+  const TYPE_BONUS = 3;
+
+  let best: TemplateMatch | null = null;
+  for (const template of PROJECT_TEMPLATES) {
+    const matched: string[] = [];
+    let score = 0;
+    for (const keyword of [template.type, ...template.keywords]) {
+      const inGoal = countMatches(goalText, keyword);
+      const inDescription = countMatches(descriptionText, keyword);
+      if (!inGoal && !inDescription) continue;
+      matched.push(keyword);
+      const weight = keyword === template.type ? TYPE_BONUS : 1;
+      score += weight * (inGoal * GOAL_WEIGHT + Math.min(inDescription, 2));
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { template, score, matched, confidence: score >= GOAL_WEIGHT ? "strong" : "weak" };
+    }
   }
-  return best?.t ?? GENERIC_TEMPLATE;
+  return best ?? { template: GENERIC_TEMPLATE, score: 0, matched: [], confidence: "fallback" };
+}
+
+/** Pick the best template for a goal (and optional project description). */
+export function detectTemplate(goal: string, description = ""): ProjectTemplate {
+  return matchTemplate(goal, description).template;
 }

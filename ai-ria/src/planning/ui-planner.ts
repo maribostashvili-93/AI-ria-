@@ -4,7 +4,11 @@ import { writeRiaFile } from "../core/paths.js";
 import { estimateTokens } from "../compression/tokenizer.js";
 import { AGENT_PROFILES, getProfile } from "../tokens/token-limits.js";
 import { recordPackGeneration } from "../tokens/token-ledger.js";
-import { COMPONENT_LIBRARY, detectTemplate, type ComponentSpec } from "./templates.js";
+import { matchTemplate, type ComponentSpec, type ProjectTemplate } from "./templates.js";
+import { inferProject, specsFor, type ExistingComponent, type ProjectInference } from "./inference.js";
+import { scanRepo } from "../repo/scanner.js";
+import { analyzeDesign } from "../design/analyzer.js";
+import type { DesignReport, RepoMap } from "../core/types.js";
 
 export interface UiPlan {
   goal: string;
@@ -14,6 +18,9 @@ export interface UiPlan {
   description: string;
   pages: string[];
   components: ComponentSpec[];
+  /** Components the repository already has — reuse these instead of rebuilding. */
+  existingComponents: ExistingComponent[];
+  palette: { name: string; value: string }[];
   agents: {
     name: string;
     role: string;
@@ -23,6 +30,16 @@ export interface UiPlan {
     order: number;
   }[];
   securityFlows: string[];
+  /** Where each part of the plan came from, so it can be audited. */
+  sources: {
+    projectType: string;
+    pages: "repository routes" | "template";
+    components: "repository" | "template" | "repository + template";
+    palette: "project design tokens" | "template";
+    securityFlows: "repository evidence" | "template" | "repository evidence + template";
+  };
+  /** Human-readable detection notes. */
+  signals: string[];
 }
 
 async function readProjectDescription(root: string): Promise<string> {
@@ -43,13 +60,13 @@ async function readProjectDescription(root: string): Promise<string> {
   return parts.join("\n");
 }
 
-function pickAgents(template: ReturnType<typeof detectTemplate>): UiPlan["agents"] {
+function pickAgents(securityFlows: string[]): UiPlan["agents"] {
   const names = [
     { name: "visual-agent", role: "Build UI from the visual pack and design rules", pack: "VISUAL_CONTEXT.md" },
     { name: "claude", role: "Implement components, wiring, and logic (code agent)", pack: "CLAUDE_CONTEXT.md" },
   ];
-  if (template.securityFlows.length) {
-    names.push({ name: "security-agent", role: `Review: ${template.securityFlows.join("; ")}`, pack: "SECURITY_CONTEXT.md" });
+  if (securityFlows.length) {
+    names.push({ name: "security-agent", role: `Review: ${securityFlows.join("; ")}`, pack: "SECURITY_CONTEXT.md" });
   }
   names.push({ name: "compact", role: "Documentation and final summary pass", pack: "COMPACT_CONTEXT.md" });
   return names.map((a, i) => {
@@ -58,26 +75,115 @@ function pickAgents(template: ReturnType<typeof detectTemplate>): UiPlan["agents
   });
 }
 
-/** Analyze goal + project description and produce the full UI/UX plan. */
-export async function buildUiPlan(root: string, goal: string): Promise<UiPlan> {
+export interface BuildPlanOptions {
+  /** Reuse an already-built map/report instead of rescanning the project. */
+  map?: RepoMap;
+  design?: DesignReport;
+}
+
+/**
+ * Topics used to fold "Authentication" (template) into "Authentication and
+ * session handling" (evidence) instead of listing both.
+ */
+const FLOW_TOPICS: [RegExp, string][] = [
+  // Prefix matching on purpose: "Authentication" and "Auth" are one topic.
+  [/\b(auth|login|session|2fa|sign[- ]?in)/i, "auth"],
+  [/\b(payment|checkout|pci|billing|transaction|invoic)/i, "payments"],
+  [/\b(upload|attachment|media)/i, "uploads"],
+  [/\b(api[- ]?key|token|secret|credential)/i, "secrets"],
+  [/\b(audit|trail)/i, "audit"],
+  [/\b(role|rbac|access control|permission|admin)/i, "access"],
+  [/\b(privacy|personal data|pii|grade|encryption)/i, "data"],
+  [/\b(spam|bot|captcha|rate limit)/i, "abuse"],
+];
+
+function topicOf(flow: string): string {
+  return FLOW_TOPICS.find(([pattern]) => pattern.test(flow))?.[1] ?? flow.toLowerCase();
+}
+
+/** Evidence-backed flows win their topic; template flows only fill new topics. */
+function mergeFlows(evidence: string[], template: string[]): string[] {
+  const taken = new Set(evidence.map(topicOf));
+  const out = [...evidence];
+  for (const flow of template) {
+    const topic = topicOf(flow);
+    if (taken.has(topic)) continue;
+    taken.add(topic);
+    out.push(flow);
+  }
+  return out;
+}
+
+/** Merge repository evidence with the template, evidence first. */
+function mergePlan(template: ProjectTemplate, inference: ProjectInference) {
+  const pages = inference.pages.length ? inference.pages.map((p) => p.value) : template.pages;
+
+  // Specify the component kinds the repo already uses, then top up from the
+  // template with kinds the project plausibly still needs.
+  const fromRepo = specsFor(inference.componentKinds);
+  const fromTemplate = specsFor(template.components).filter((s) => !fromRepo.some((r) => r.name === s.name));
+  const components = inference.greenfield ? specsFor(template.components) : [...fromRepo, ...fromTemplate];
+
+  const palette = inference.palette.length ? inference.palette.map((p) => p.value) : template.palette;
+
+  const inferredFlows = inference.securityFlows.map((f) => f.value);
+  const securityFlows = inferredFlows.length
+    ? mergeFlows(inferredFlows, template.securityFlows)
+    : template.securityFlows;
+
+  return { pages, components, palette, securityFlows, fromRepoCount: fromRepo.length, inferredFlowCount: inferredFlows.length };
+}
+
+/**
+ * Produce the full UI/UX plan.
+ *
+ * For an existing repository the plan is built from what is actually there —
+ * routes become pages, component files become components to reuse, CSS custom
+ * properties become the palette, and dependencies decide which flows need a
+ * security review. The keyword template only fills the gaps, and carries the
+ * whole plan for a greenfield project.
+ */
+export async function buildUiPlan(root: string, goal: string, options: BuildPlanOptions = {}): Promise<UiPlan> {
   const description = await readProjectDescription(root);
-  const template = detectTemplate(`${goal}\n${description}`);
-  const components = template.components.map((key) => COMPONENT_LIBRARY[key]).filter(Boolean);
+  const match = matchTemplate(goal, description);
+  const template = match.template;
+
+  const map = options.map ?? (await scanRepo(root).catch(() => null));
+  const design = options.design ?? (map ? await analyzeDesign(root, map).catch(() => undefined) : undefined);
+  const inference = map
+    ? inferProject(map, design)
+    : { greenfield: true, pages: [], existingComponents: [], componentKinds: [], palette: [], securityFlows: [], signals: ["Project could not be scanned — planning from the template"] };
+
+  const merged = mergePlan(template, inference);
+  const typeSource = match.confidence === "fallback"
+    ? "no keyword matched — generic template"
+    : `matched ${match.matched.slice(0, 5).join(", ")} (${match.confidence})`;
+
   return {
     goal,
     generatedAt: new Date().toISOString(),
     projectType: template.type,
     style: template.style,
     description: description.slice(0, 400),
-    pages: template.pages,
-    components,
-    agents: pickAgents(template),
-    securityFlows: template.securityFlows,
+    pages: merged.pages,
+    components: merged.components,
+    existingComponents: inference.existingComponents,
+    palette: merged.palette,
+    agents: pickAgents(merged.securityFlows),
+    securityFlows: merged.securityFlows,
+    sources: {
+      projectType: typeSource,
+      pages: inference.pages.length ? "repository routes" : "template",
+      components: inference.greenfield || !merged.fromRepoCount
+        ? "template"
+        : merged.fromRepoCount === merged.components.length ? "repository" : "repository + template",
+      palette: inference.palette.length ? "project design tokens" : "template",
+      securityFlows: !merged.inferredFlowCount
+        ? "template"
+        : merged.inferredFlowCount === merged.securityFlows.length ? "repository evidence" : "repository evidence + template",
+    },
+    signals: inference.signals,
   };
-}
-
-function templateOf(plan: UiPlan) {
-  return detectTemplate(`${plan.goal}\n${plan.description}`);
 }
 
 /** .ria/design/UI_PLAN.md - pages, components, agents, security flows. */
@@ -86,16 +192,32 @@ export function uiPlanToMarkdown(plan: UiPlan): string {
     "# UI Plan",
     "",
     `Goal: **${plan.goal}**`,
-    `Project type: **${plan.projectType}** | Style: ${plan.style}`,
+    `Project type: **${plan.projectType}** (${plan.sources.projectType}) | Style: ${plan.style}`,
     `Generated: ${plan.generatedAt}`,
     "",
-    "## Pages",
+    "## How This Plan Was Derived",
+    "",
+    `- pages: ${plan.sources.pages}`,
+    `- components: ${plan.sources.components}`,
+    `- palette: ${plan.sources.palette}`,
+    `- security flows: ${plan.sources.securityFlows}`,
+    ...plan.signals.map((s) => `- ${s}`),
+    "",
+    `## Pages (${plan.sources.pages})`,
     "",
     ...plan.pages.map((p) => `- ${p}`),
     "",
-    "## Components",
-    "",
   ];
+  if (plan.existingComponents.length) {
+    lines.push(
+      "## Existing Components — Reuse, Do Not Rebuild",
+      "",
+      ...plan.existingComponents.slice(0, 40).map((c) => `- \`${c.name}\` — ${c.file}${c.kind ? ` (${c.kind})` : ""}`),
+      plan.existingComponents.length > 40 ? `- …and ${plan.existingComponents.length - 40} more` : "",
+      "",
+    );
+  }
+  lines.push("## Component Rules", "");
   for (const c of plan.components) {
     lines.push(`### ${c.name}`, "", `Purpose: ${c.purpose}`, "");
     lines.push(...c.rules.map((r) => `- rule: ${r}`));
@@ -112,15 +234,14 @@ export function uiPlanToMarkdown(plan: UiPlan): string {
 
 /** .ria/design/DESIGN.md - design.md-style structured design system for the plan. */
 export function designMdFromPlan(plan: UiPlan): string {
-  const t = templateOf(plan);
   return [
     `# DESIGN.md - ${plan.goal}`,
     "",
     `Style direction: ${plan.style}`,
     "",
-    "## Colors",
+    `## Colors (${plan.sources.palette})`,
     "",
-    ...t.palette.map((c) => `- ${c.name}: ${c.value}`),
+    ...plan.palette.map((c) => `- ${c.name}: ${c.value}`),
     "",
     "## Typography",
     "",
@@ -162,7 +283,6 @@ export function designMdFromPlan(plan: UiPlan): string {
 
 /** .ria/agent-pack/VISUAL_AGENT_PACK.md - compact, agent-ready visual brief. */
 export function visualPackFromPlan(plan: UiPlan): string {
-  const t = templateOf(plan);
   const lines = [
     "# VISUAL AGENT PACK",
     "",
@@ -171,18 +291,27 @@ export function visualPackFromPlan(plan: UiPlan): string {
     "",
     "Build the UI below. Use the tokens and rules exactly; do not invent new colors or spacing.",
     "",
-    "## Tokens",
+    `## Tokens (${plan.sources.palette})`,
     "",
-    ...t.palette.map((c) => `- --${c.name}: ${c.value}`),
+    ...plan.palette.map((c) => `- --${c.name}: ${c.value}`),
     "- font: Inter, system-ui | base 16px | radius 12/8px | spacing scale 4px",
     "",
-    "## Build Order",
+    `## Build Order (${plan.sources.pages})`,
     "",
     ...plan.pages.map((p, i) => `${i + 1}. ${p}`),
     "",
-    "## Components",
-    "",
   ];
+  if (plan.existingComponents.length) {
+    const shown = plan.existingComponents.slice(0, 25);
+    lines.push(
+      "## Reuse These — They Already Exist",
+      "",
+      ...shown.map((c) => `- \`${c.name}\` (${c.file})`),
+      plan.existingComponents.length > shown.length ? `- …and ${plan.existingComponents.length - shown.length} more` : "",
+      "",
+    );
+  }
+  lines.push("## Components", "");
   for (const c of plan.components) {
     lines.push(`### ${c.name}`, `- ${c.purpose}`, `- ${c.rules.join("; ")}`, `- classes: \`${c.tailwind}\``);
     if (c.security) lines.push(`- security: ${c.security}`);
@@ -203,6 +332,10 @@ export function routingFromPlan(plan: UiPlan): string {
     securityFlows: plan.securityFlows,
     pages: plan.pages,
     components: plan.components.map((c) => c.name),
+    existingComponents: plan.existingComponents,
+    palette: plan.palette,
+    sources: plan.sources,
+    signals: plan.signals,
   }, null, 2);
 }
 
@@ -212,8 +345,8 @@ export interface PlanUiResult {
 }
 
 /** `ria plan-ui` - write the full planning output set and record token usage. */
-export async function writeUiPlan(root: string, goal: string): Promise<PlanUiResult> {
-  const plan = await buildUiPlan(root, goal);
+export async function writeUiPlan(root: string, goal: string, options: BuildPlanOptions = {}): Promise<PlanUiResult> {
+  const plan = await buildUiPlan(root, goal, options);
   const uiPlanMd = uiPlanToMarkdown(plan);
   const designMd = designMdFromPlan(plan);
   const visualPack = visualPackFromPlan(plan);

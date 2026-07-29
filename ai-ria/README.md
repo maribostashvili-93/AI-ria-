@@ -86,7 +86,7 @@ After that, `your-project/.ria/` contains:
 └── summary.json           ← one machine-readable rollup
 ```
 
-`pnpm test` runs the Vitest suite (105 tests). `pnpm dev <command>` runs the CLI without building.
+`pnpm test` runs the Vitest suite (114 tests). `pnpm dev <command>` runs the CLI without building.
 
 ## Using It With Your AI Agent
 
@@ -123,7 +123,7 @@ The agent gets the whole project's knowledge for a fraction of the tokens instea
 | v0.1 Token Accounting | `ria tokens report <path>` | `tokens/TOKEN_REPORT.md`, `tokens/token-summary.json` — raw vs compressed vs saved tokens, by agent/task/pack, budget warnings |
 | v0.1 Token Accounting | `ria tokens agent <path> <name>` / `ria tokens compare <path>` | per-agent usage; pack sizes vs every agent's preferred budget |
 | v0.1 Token Accounting | `ria tokens budget <path> --agent claude --limit 200000` | `tokens/budgets.json` — custom token limits per agent |
-| v0.2 UI/UX Planning | `ria plan-ui <path> --goal "Build dashboard UI for LMS platform"` | `design/UI_PLAN.md`, `design/DESIGN.md`, `design/DESIGN_PACK.md`, `agent-pack/VISUAL_AGENT_PACK.md`, `orchestration/agent-routing.json` — project type, pages, components (purpose/rules/hints/Tailwind/security), agents + budgets |
+| v0.2 UI/UX Planning | `ria plan-ui <path> --goal "Build dashboard UI for LMS platform"` | `design/UI_PLAN.md`, `design/DESIGN.md`, `design/DESIGN_PACK.md`, `agent-pack/VISUAL_AGENT_PACK.md`, `orchestration/agent-routing.json` — the plan is **inferred from the repository**: routes become pages, existing component files become components to reuse, the project's CSS custom properties become the palette, and dependencies/paths decide which flows need a security review. A keyword template fills gaps and carries greenfield projects. Every part records its source (`repository routes` vs `template`) |
 | v0.2 Design Suggest | `ria design suggest <path> --goal "LMS dashboard"` | style direction + `design/DESIGN.md` + compact visual pack (awesome-design-md / design.md-style structure) |
 | v0.4 Orchestrate | `ria orchestrate <path> --goal "..."` | plan + compress + all packs for routed agents + token report in one run |
 | v0.1 Repository Scanner | `ria scan <path>` | `repo-map.json`, `repo-summary.md` — framework (Next.js/React/Vue/Astro/…), package manager, routes, components, styles, configs |

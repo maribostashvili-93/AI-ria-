@@ -57,7 +57,7 @@ instead of rescanning.
 | --- | --- |
 | Compression | Relevance ranking, preservation rules, better budget packing |
 | Memory | Recall quality, graph edges, decay of stale entries |
-| Planning | `detectTemplate` is keyword-matching today — real project-shape inference would be a big step up |
+| Planning | `inference.ts` reads routes, components, tokens and dependencies out of the repo; more signal kinds (state libraries, i18n, test setup, API shape) would sharpen it further |
 | Figma bridge | More MCP/plugin export adapters, token extraction fidelity |
 | Security | Higher-signal rules, fewer false positives, policy configuration |
 

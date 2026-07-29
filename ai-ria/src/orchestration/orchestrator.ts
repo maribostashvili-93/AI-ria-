@@ -77,17 +77,20 @@ function orchestrationToMarkdown(result: OrchestrationResult): string {
  * leave a written orchestration plan the agents can follow.
  */
 export async function orchestrate(root: string, goal: string): Promise<OrchestrationResult> {
-  const { plan, files } = await writeUiPlan(root, goal);
-  const routedProviders = routeProviders(plan);
-
-  // compressed repo context (skip silently for empty projects).
-  // The map is scanned once here and reused by the security pass below.
-  let contextTokens: OrchestrationResult["contextTokens"] = null;
+  // Scan once, up front: planning infers pages/components/palette from the
+  // repository, and compression and the security pass reuse the same map.
   let repoMap: RepoMap | undefined;
   try {
-    const map = await scanRepo(root);
-    repoMap = map;
-    if (map.fileCount > 0) {
+    repoMap = await scanRepo(root);
+  } catch { /* unreadable or empty project — planning falls back to templates */ }
+
+  const { plan, files } = await writeUiPlan(root, goal, { map: repoMap });
+  const routedProviders = routeProviders(plan);
+
+  let contextTokens: OrchestrationResult["contextTokens"] = null;
+  try {
+    const map = repoMap;
+    if (map && map.fileCount > 0) {
       const pack = await buildContextPackV2(root, map, 12000);
       files.push(
         await writeRiaFile(root, "context/context-pack.md", contextPackV2ToMarkdown(pack)),

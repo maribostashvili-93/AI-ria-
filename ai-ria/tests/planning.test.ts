@@ -2,16 +2,45 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { detectTemplate, COMPONENT_LIBRARY } from "../src/planning/templates.js";
+import { detectTemplate, matchTemplate, COMPONENT_LIBRARY } from "../src/planning/templates.js";
+import { inferProject, routeToPageName } from "../src/planning/inference.js";
 import { buildUiPlan, writeUiPlan, suggestDesign, designMdFromPlan, visualPackFromPlan } from "../src/planning/ui-planner.js";
+import { scanRepo } from "../src/repo/scanner.js";
+import { analyzeDesign } from "../src/design/analyzer.js";
 
 let root: string;
+/** A repository with real routes, components, tokens and dependencies. */
+let realProject: string;
 
 beforeAll(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "ria-plan-"));
   await fs.writeFile(
     path.join(root, "package.json"),
     JSON.stringify({ name: "lms-platform", description: "LMS platform for students, mentors and admin users" }),
+    "utf8",
+  );
+
+  realProject = await fs.mkdtemp(path.join(os.tmpdir(), "ria-plan-real-"));
+  await fs.writeFile(
+    path.join(realProject, "package.json"),
+    JSON.stringify({
+      name: "booking-app",
+      dependencies: { next: "14.0.0", react: "18.0.0", stripe: "14.0.0", "next-auth": "4.0.0" },
+    }),
+    "utf8",
+  );
+  for (const dir of ["app/rooms", "app/checkout", "src/components"]) {
+    await fs.mkdir(path.join(realProject, dir), { recursive: true });
+  }
+  await fs.writeFile(path.join(realProject, "app/page.tsx"), "export default function Home() { return null; }", "utf8");
+  await fs.writeFile(path.join(realProject, "app/rooms/page.tsx"), "export default function Rooms() { return null; }", "utf8");
+  await fs.writeFile(path.join(realProject, "app/checkout/page.tsx"), "export default function Checkout() { return null; }", "utf8");
+  await fs.writeFile(path.join(realProject, "src/components/RoomCard.tsx"), "export const RoomCard = () => null;", "utf8");
+  await fs.writeFile(path.join(realProject, "src/components/SiteNavbar.tsx"), "export const SiteNavbar = () => null;", "utf8");
+  await fs.writeFile(path.join(realProject, "src/components/BookingModal.tsx"), "export const BookingModal = () => null;", "utf8");
+  await fs.writeFile(
+    path.join(realProject, "src/styles.css"),
+    ":root { --color-primary: #FF5A5F; --color-ink: #222222; --spacing-md: 12px; }",
     "utf8",
   );
 });
@@ -22,6 +51,100 @@ describe("project type detection", () => {
     expect(detectTemplate("online shop with cart and checkout").type).toBe("ecommerce");
     expect(detectTemplate("fintech wallet with invoices").type).toBe("finance");
     expect(detectTemplate("something unusual").type).toBe("generic-app");
+  });
+
+  it("weighs the goal above the project description", () => {
+    // A long README mentioning "dashboard"/"platform" must not outvote the goal.
+    const description = "An internal analytics platform. The dashboard shows metrics. Our SaaS dashboard is a CRM.";
+    expect(detectTemplate("build the online shop cart and checkout", description).type).toBe("ecommerce");
+    // With no goal signal the description still decides.
+    expect(detectTemplate("make it nicer", description).type).toBe("saas-dashboard");
+  });
+
+  it("matches whole words, not substrings", () => {
+    // "crm" must not match inside "crumbs"; "shop" must not match "workshop".
+    expect(matchTemplate("bake crumbs in a workshop").confidence).toBe("fallback");
+    expect(matchTemplate("build a crm").template.type).toBe("saas-dashboard");
+  });
+
+  it("reports what matched and how confident it is", () => {
+    const strong = matchTemplate("build an ecommerce checkout");
+    expect(strong.confidence).toBe("strong");
+    expect(strong.matched).toContain("checkout");
+    expect(matchTemplate("something unusual").confidence).toBe("fallback");
+  });
+});
+
+describe("project inference (evidence over templates)", () => {
+  it("turns routes into page names", () => {
+    expect(routeToPageName("/")).toBe("Home");
+    expect(routeToPageName("/rooms")).toBe("Rooms");
+    expect(routeToPageName("/rooms/[id]")).toBe("Rooms detail");
+    expect(routeToPageName("/user-settings")).toBe("User settings");
+  });
+
+  it("reads pages, components, palette and security flows out of the repository", async () => {
+    const map = await scanRepo(realProject);
+    const design = await analyzeDesign(realProject, map);
+    const inference = inferProject(map, design);
+
+    expect(inference.greenfield).toBe(false);
+    expect(inference.pages.map((p) => p.value)).toContain("Rooms");
+    expect(inference.pages.every((p) => p.source.startsWith("route"))).toBe(true);
+
+    const names = inference.existingComponents.map((c) => c.name);
+    expect(names).toContain("RoomCard");
+    expect(names).toContain("SiteNavbar");
+    expect(inference.componentKinds).toContain("navbar");
+    expect(inference.componentKinds).toContain("modal");
+
+    expect(inference.palette.map((p) => p.value.value)).toContain("#FF5A5F");
+    // --spacing-md is not a color and must not enter the palette
+    expect(inference.palette.some((p) => p.value.name === "spacing-md")).toBe(false);
+
+    const flows = inference.securityFlows;
+    expect(flows.some((f) => /Payments/i.test(f.value) && f.source.includes("stripe"))).toBe(true);
+    expect(flows.some((f) => /Authentication/i.test(f.value))).toBe(true);
+  });
+
+  it("falls back to the template for a project with no code", async () => {
+    const empty = await fs.mkdtemp(path.join(os.tmpdir(), "ria-plan-empty-"));
+    const inference = inferProject(await scanRepo(empty));
+    expect(inference.greenfield).toBe(true);
+    expect(inference.pages).toHaveLength(0);
+  });
+});
+
+describe("plan built from repository evidence", () => {
+  it("prefers real routes, components and tokens over the template", async () => {
+    const plan = await buildUiPlan(realProject, "Build the room booking UI");
+
+    expect(plan.sources.pages).toBe("repository routes");
+    expect(plan.pages).toContain("Rooms");
+    expect(plan.pages).toContain("Checkout");
+
+    expect(plan.sources.palette).toBe("project design tokens");
+    expect(plan.palette.some((c) => c.value === "#FF5A5F")).toBe(true);
+    expect(designMdFromPlan(plan)).toContain("#FF5A5F");
+
+    expect(plan.existingComponents.map((c) => c.name)).toContain("RoomCard");
+    expect(visualPackFromPlan(plan)).toContain("Reuse These");
+
+    expect(plan.sources.securityFlows).toContain("repository evidence");
+    expect(plan.securityFlows.some((f) => /Payments/i.test(f))).toBe(true);
+  });
+
+  it("does not list the same security topic twice", async () => {
+    const plan = await buildUiPlan(realProject, "Build the room booking checkout");
+    const authFlows = plan.securityFlows.filter((f) => /^auth/i.test(f));
+    expect(authFlows.length).toBeLessThanOrEqual(1);
+  });
+
+  it("still plans a greenfield project from the template", async () => {
+    const plan = await buildUiPlan(root, "Build dashboard UI for LMS platform");
+    expect(plan.sources.pages).toBe("template");
+    expect(plan.sources.palette).toBe("template");
+    expect(plan.pages).toContain("Dashboard");
   });
 });
 
