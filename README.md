@@ -9,7 +9,7 @@
     <a href="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml"><img src="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
-    <img src="https://img.shields.io/badge/tests-114%20passing-brightgreen" alt="114 tests" />
+    <img src="https://img.shields.io/badge/tests-119%20passing-brightgreen" alt="119 tests" />
   </p>
 
   <p>
@@ -50,7 +50,7 @@ your-project/
 | **Provider packs** | The same knowledge at each agent's token budget (Claude 12k, Cursor 8k, Codex 6k, compact 2.5k), always stating what was dropped |
 | **Figma bridge** | Design tokens from the Figma API *or* from plugin/MCP exports with no token at all |
 | **Security intelligence** | Secrets, unsafe commands, prompt injection in agent-instruction files — report only, never executed |
-| **Project inference** | Plans are derived from the repo — its routes, components, design tokens and dependencies — with the source of every part recorded |
+| **Project inference** | Plans are derived from the repo — routes, components, design tokens, and the stack it already commits to — turned into rules, with the source of every part recorded |
 | **Studio** | A local dashboard over `.ria/`: memory graph, routing, tokens, security, handoffs |
 
 Everything is deterministic. **AI RIA makes no LLM calls** — no API key, no
@@ -120,7 +120,8 @@ agents need:
 Plan: saas-dashboard | 6 pages, 11 components
 Derived from: pages=template, components=repository + template,
               palette=project design tokens, security=repository evidence + template
-Existing components to reuse: 52
+Existing components to reuse: 43
+Stack constraints: Express, Vitest, Playwright, Testing Library, Tailwind CSS, Zod
 Routing: visual -> claude -> security -> compact
 VISUAL_CONTEXT.md:   ~2930 tokens (budget 10000)
 CLAUDE_CONTEXT.md:   ~2818 tokens (budget 12000)
@@ -132,7 +133,29 @@ COMPACT_CONTEXT.md:  ~1933 tokens (budget 2500)
 existing component files become components to reuse rather than rebuild, the
 project's own CSS custom properties become the palette, and dependencies decide
 which flows need a security review (`stripe` → payments, `next-auth` → sessions).
-Every line of the plan records where it came from, so it can be argued with.
+
+It also detects what the project already commits to and turns it into rules the
+agent has to follow:
+
+```text
+Stack constraints detected (6):
+  api           Express              dependency "express"
+  testing       Vitest               dependency "vitest"
+  testing       Playwright           dependency "@playwright/test"
+  testing       Testing Library      dependency "@testing-library/jest-dom"
+  styling       Tailwind CSS         dependency "tailwindcss"
+  forms         Zod                  dependency "zod"
+```
+
+→ *"Style with Tailwind utility classes and the project's token scale — do not
+add ad-hoc CSS files."* · *"Every user-facing string goes through next-intl
+message files — never hardcode copy in a component."* · *"Validate with Zod
+schemas, and validate on the server too — client validation is not a control."*
+
+State, server-state, data, API, i18n, testing, styling, UI kit and forms are
+covered. Dependencies are collected from nested manifests too, so monorepos work
+— and fixtures never count as evidence. Every line of the plan records where it
+came from, so it can be argued with.
 
 ### See it
 
@@ -304,7 +327,7 @@ See [Roadmap](./docs/Roadmap.md) for where it goes next.
 ```bash
 cd ai-ria
 pnpm install
-pnpm run verify      # typecheck + lint + 114 tests
+pnpm run verify      # typecheck + lint + 119 tests
 pnpm run build
 ```
 

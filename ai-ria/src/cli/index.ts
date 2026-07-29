@@ -648,6 +648,10 @@ program
     console.log(`  components:      ${plan.sources.components}${plan.existingComponents.length ? ` (${plan.existingComponents.length} existing to reuse)` : ""}`);
     console.log(`  palette:         ${plan.sources.palette}`);
     console.log(`  security flows:  ${plan.sources.securityFlows}`);
+    if (plan.stack.length) {
+      console.log(`\nStack constraints detected (${plan.stack.length}):`);
+      for (const s of plan.stack) console.log(`  ${s.category.padEnd(13)} ${s.name.padEnd(20)} ${s.evidence}`);
+    }
     console.log(`\nAgents:\n${agentBudgetSummary(plan)}`);
   });
 
@@ -662,6 +666,7 @@ program
     console.log(`Plan: ${plan.projectType} | ${plan.pages.length} pages, ${plan.components.length} components`);
     console.log(`Derived from: pages=${plan.sources.pages}, components=${plan.sources.components}, palette=${plan.sources.palette}, security=${plan.sources.securityFlows}`);
     if (plan.existingComponents.length) console.log(`Existing components to reuse: ${plan.existingComponents.length}`);
+    if (plan.stack.length) console.log(`Stack constraints: ${plan.stack.map((s) => s.name).join(", ")}`);
     console.log(`Routing: ${result.routedProviders.join(" -> ")}`);
     if (result.contextTokens) console.log(`Context: ~${result.contextTokens.compressed} tokens (raw ~${result.contextTokens.raw})`);
     if (result.routedProviders.includes("security")) console.log(`Security scan: ${result.securityFindings} finding(s)`);

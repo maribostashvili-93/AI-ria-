@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { RepoMap, SecurityFinding, SecurityReport, SecurityReportSchema } from "../core/types.js";
+import { FIXTURE_PATHS, isFixturePath } from "../core/fixtures.js";
 import { scanRepo } from "../repo/scanner.js";
 
 interface Rule {
@@ -38,22 +39,17 @@ const SCANNABLE_EXTS = new Set([
 ]);
 
 /**
- * Paths whose findings are fixtures, not production risk. Test suites and
- * example apps deliberately contain fake keys and unsafe commands; reporting
- * them buries the real findings and makes `ria security` fail CI forever.
+ * Paths whose findings are fixtures, not production risk — reporting them
+ * buries the real findings and makes `ria security` fail CI forever.
  */
-export const DEFAULT_EXCLUDES: RegExp[] = [
-  /(^|\/)(tests?|__tests__|__mocks__|mocks|fixtures|__fixtures__|examples?|samples?|demo|demos)\//i,
-  /\.(test|spec)\.[cm]?[jt]sx?$/i,
-  /(^|\/)(vendor|third[-_]party)\//i,
-];
+export const DEFAULT_EXCLUDES = FIXTURE_PATHS;
 
 /** Lines carrying this marker are skipped — used by rule definitions themselves. */
 const IGNORE_MARKER = "ria-security-ignore";
 
 /** True when the file is a fixture/test path that should not produce findings. */
 export function isExcludedPath(file: string, extraExcludes: RegExp[] = []): boolean {
-  return [...DEFAULT_EXCLUDES, ...extraExcludes].some((re) => re.test(file));
+  return isFixturePath(file, extraExcludes);
 }
 
 function applyRules(file: string, content: string, rules: Rule[]): SecurityFinding[] {

@@ -17,6 +17,16 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   carries greenfield projects only. Every plan records the source of each part
   (`repository routes` vs `template`) in `UI_PLAN.md`, `agent-routing.json` and
   the CLI output, so it can be audited rather than trusted.
+- **Stack constraints.** Planning detects what the project already commits to
+  across nine concerns — client state, server state, data layer, API shape,
+  i18n, testing, styling, UI kit and forms — and turns each into a rule the
+  agent must follow ("Every user-facing string goes through next-intl message
+  files — never hardcode copy in a component"), with the dependency or file
+  that proves it. UI-relevant rules go into `VISUAL_AGENT_PACK.md`; backend
+  rules stay out of the visual agent's budget. Stack choices are also listed
+  under "Do Not Change" in the generated `DESIGN.md`.
+- Dependencies are collected from nested manifests, so monorepos and folders
+  with no root `package.json` are covered.
 
 ### Changed
 
@@ -25,6 +35,11 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   goal the user typed, and `crm` matched inside `crumbs`.
 - `orchestrate` scans the repository once and shares the map with planning,
   compression and the security pass.
+- Fixture, test and example paths are now filtered centrally
+  (`src/core/fixtures.ts`) and no longer count as evidence anywhere: not for
+  security findings, not for the detected stack, not for the component
+  inventory. On a real monorepo this removed a plan built on a test fixture's
+  API folder and 9 fixture components listed as "reuse these".
 
 ### Fixed
 

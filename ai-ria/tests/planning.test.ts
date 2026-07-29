@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { detectTemplate, matchTemplate, COMPONENT_LIBRARY } from "../src/planning/templates.js";
-import { inferProject, routeToPageName } from "../src/planning/inference.js";
+import { inferProject, inferStack, collectDependencies, routeToPageName } from "../src/planning/inference.js";
 import { buildUiPlan, writeUiPlan, suggestDesign, designMdFromPlan, visualPackFromPlan } from "../src/planning/ui-planner.js";
 import { scanRepo } from "../src/repo/scanner.js";
 import { analyzeDesign } from "../src/design/analyzer.js";
@@ -25,7 +25,7 @@ beforeAll(async () => {
     path.join(realProject, "package.json"),
     JSON.stringify({
       name: "booking-app",
-      dependencies: { next: "14.0.0", react: "18.0.0", stripe: "14.0.0", "next-auth": "4.0.0" },
+      dependencies: { next: "14.0.0", react: "18.0.0", stripe: "14.0.0", "next-auth": "4.0.0", "@prisma/client": "5.0.0" },
     }),
     "utf8",
   );
@@ -41,6 +41,31 @@ beforeAll(async () => {
   await fs.writeFile(
     path.join(realProject, "src/styles.css"),
     ":root { --color-primary: #FF5A5F; --color-ink: #222222; --spacing-md: 12px; }",
+    "utf8",
+  );
+
+  // A nested workspace manifest — the stack often lives below the root.
+  await fs.mkdir(path.join(realProject, "frontend"), { recursive: true });
+  await fs.writeFile(
+    path.join(realProject, "frontend/package.json"),
+    JSON.stringify({
+      name: "booking-web",
+      dependencies: { zustand: "4.0.0", tailwindcss: "3.4.0", "next-intl": "3.0.0", "react-hook-form": "7.0.0" },
+      devDependencies: { vitest: "2.0.0" },
+    }),
+    "utf8",
+  );
+
+  // A fixture app that must never be mistaken for the project itself.
+  await fs.mkdir(path.join(realProject, "test/fixtures/legacy-app/src/components"), { recursive: true });
+  await fs.writeFile(
+    path.join(realProject, "test/fixtures/legacy-app/package.json"),
+    JSON.stringify({ name: "legacy", dependencies: { redux: "4.0.0", bootstrap: "5.0.0" } }),
+    "utf8",
+  );
+  await fs.writeFile(
+    path.join(realProject, "test/fixtures/legacy-app/src/components/LegacyCard.tsx"),
+    "export const LegacyCard = () => null;",
     "utf8",
   );
 });
@@ -107,6 +132,41 @@ describe("project inference (evidence over templates)", () => {
     expect(flows.some((f) => /Authentication/i.test(f.value))).toBe(true);
   });
 
+  it("reads dependencies from nested manifests but never from fixtures", async () => {
+    const map = await scanRepo(realProject);
+    const { deps, manifests } = await collectDependencies(realProject, map);
+    expect(deps).toContain("next-auth");   // root manifest
+    expect(deps).toContain("zustand");     // frontend/package.json
+    expect(deps).toContain("tailwindcss");
+    expect(deps).not.toContain("redux");   // test/fixtures/legacy-app
+    expect(deps).not.toContain("bootstrap");
+    expect(manifests.some((m) => m.includes("fixtures"))).toBe(false);
+  });
+
+  it("turns the detected stack into rules an agent must follow", async () => {
+    const map = await scanRepo(realProject);
+    const { deps } = await collectDependencies(realProject, map);
+    const stack = inferStack(map, deps);
+    const byName = Object.fromEntries(stack.map((s) => [s.name, s]));
+
+    expect(byName["Zustand"].category).toBe("state");
+    expect(byName["Tailwind CSS"].rule).toMatch(/utility classes/i);
+    expect(byName["next-intl"].rule).toMatch(/never hardcode copy/i);
+    expect(byName["Vitest"].category).toBe("testing");
+    expect(byName["React Hook Form"].category).toBe("forms");
+    // every signal carries the evidence that produced it
+    expect(stack.every((s) => /dependency|file/.test(s.evidence))).toBe(true);
+    // the fixture app's Redux/Bootstrap must not appear
+    expect(stack.some((s) => /Redux|Bootstrap/.test(s.name))).toBe(false);
+  });
+
+  it("ignores components that live in fixtures", async () => {
+    const map = await scanRepo(realProject);
+    const inference = inferProject(map);
+    expect(inference.existingComponents.map((c) => c.name)).toContain("RoomCard");
+    expect(inference.existingComponents.map((c) => c.name)).not.toContain("LegacyCard");
+  });
+
   it("falls back to the template for a project with no code", async () => {
     const empty = await fs.mkdtemp(path.join(os.tmpdir(), "ria-plan-empty-"));
     const inference = inferProject(await scanRepo(empty));
@@ -132,6 +192,27 @@ describe("plan built from repository evidence", () => {
 
     expect(plan.sources.securityFlows).toContain("repository evidence");
     expect(plan.securityFlows.some((f) => /Payments/i.test(f))).toBe(true);
+  });
+
+  it("puts UI stack rules in the visual pack and leaves backend rules out", async () => {
+    const plan = await buildUiPlan(realProject, "Build the room booking UI");
+    const pack = visualPackFromPlan(plan);
+
+    expect(plan.stack.map((s) => s.name)).toContain("Prisma");
+    expect(pack).toContain("Stack Rules");
+    expect(pack).toMatch(/Tailwind CSS:/);
+    expect(pack).toMatch(/next-intl:/);
+    // Prisma is a data-layer concern — it must not spend the visual agent's budget
+    expect(pack).not.toContain("Prisma");
+    // and the pack stays well inside the visual-agent budget
+    expect(pack.length / 4).toBeLessThan(3000);
+  });
+
+  it("lists stack choices as things not to change in DESIGN.md", async () => {
+    const plan = await buildUiPlan(realProject, "Build the room booking UI");
+    const md = designMdFromPlan(plan);
+    expect(md).toContain("## Do Not Change");
+    expect(md).toMatch(/The styling choice: Tailwind CSS/);
   });
 
   it("does not list the same security topic twice", async () => {

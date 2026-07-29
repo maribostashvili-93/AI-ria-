@@ -5,7 +5,7 @@ import { estimateTokens } from "../compression/tokenizer.js";
 import { AGENT_PROFILES, getProfile } from "../tokens/token-limits.js";
 import { recordPackGeneration } from "../tokens/token-ledger.js";
 import { matchTemplate, type ComponentSpec, type ProjectTemplate } from "./templates.js";
-import { inferProject, specsFor, type ExistingComponent, type ProjectInference } from "./inference.js";
+import { collectDependencies, inferProject, specsFor, type ExistingComponent, type ProjectInference, type StackSignal } from "./inference.js";
 import { scanRepo } from "../repo/scanner.js";
 import { analyzeDesign } from "../design/analyzer.js";
 import type { DesignReport, RepoMap } from "../core/types.js";
@@ -20,6 +20,8 @@ export interface UiPlan {
   components: ComponentSpec[];
   /** Components the repository already has — reuse these instead of rebuilding. */
   existingComponents: ExistingComponent[];
+  /** Libraries the project already commits to, and the rules they imply. */
+  stack: StackSignal[];
   palette: { name: string; value: string }[];
   agents: {
     name: string;
@@ -114,6 +116,14 @@ function mergeFlows(evidence: string[], template: string[]): string[] {
   return out;
 }
 
+/** Note which manifests the stack was read from — useful in a monorepo. */
+function withManifestSignal(inference: ProjectInference, manifests: string[]): ProjectInference {
+  if (manifests.length > 1) {
+    inference.signals.push(`dependencies read from ${manifests.length} manifests: ${manifests.slice(0, 4).join(", ")}${manifests.length > 4 ? ", …" : ""}`);
+  }
+  return inference;
+}
+
 /** Merge repository evidence with the template, evidence first. */
 function mergePlan(template: ProjectTemplate, inference: ProjectInference) {
   const pages = inference.pages.length ? inference.pages.map((p) => p.value) : template.pages;
@@ -150,9 +160,10 @@ export async function buildUiPlan(root: string, goal: string, options: BuildPlan
 
   const map = options.map ?? (await scanRepo(root).catch(() => null));
   const design = options.design ?? (map ? await analyzeDesign(root, map).catch(() => undefined) : undefined);
+  const collected = map ? await collectDependencies(root, map).catch(() => null) : null;
   const inference = map
-    ? inferProject(map, design)
-    : { greenfield: true, pages: [], existingComponents: [], componentKinds: [], palette: [], securityFlows: [], signals: ["Project could not be scanned — planning from the template"] };
+    ? withManifestSignal(inferProject(map, design, collected?.deps), collected?.manifests ?? [])
+    : { greenfield: true, pages: [], existingComponents: [], componentKinds: [], palette: [], securityFlows: [], stack: [], signals: ["Project could not be scanned — planning from the template"] };
 
   const merged = mergePlan(template, inference);
   const typeSource = match.confidence === "fallback"
@@ -168,6 +179,7 @@ export async function buildUiPlan(root: string, goal: string, options: BuildPlan
     pages: merged.pages,
     components: merged.components,
     existingComponents: inference.existingComponents,
+    stack: inference.stack,
     palette: merged.palette,
     agents: pickAgents(merged.securityFlows),
     securityFlows: merged.securityFlows,
@@ -208,6 +220,16 @@ export function uiPlanToMarkdown(plan: UiPlan): string {
     ...plan.pages.map((p) => `- ${p}`),
     "",
   ];
+  if (plan.stack.length) {
+    lines.push(
+      "## Stack Constraints — Follow These, Do Not Replace Them",
+      "",
+      "| Concern | In use | Rule | Evidence |",
+      "|---|---|---|---|",
+      ...plan.stack.map((s) => `| ${s.category} | ${s.name} | ${s.rule} | ${s.evidence} |`),
+      "",
+    );
+  }
   if (plan.existingComponents.length) {
     lines.push(
       "## Existing Components — Reuse, Do Not Rebuild",
@@ -277,6 +299,7 @@ export function designMdFromPlan(plan: UiPlan): string {
     "- The primary color and spacing scale without a design review",
     "- Auth and payment flows without a security review",
     "- Component names - they map 1:1 to code files",
+    ...plan.stack.map((s) => `- The ${s.category} choice: ${s.name} (${s.evidence})`),
     "",
   ].join("\n");
 }
@@ -301,6 +324,16 @@ export function visualPackFromPlan(plan: UiPlan): string {
     ...plan.pages.map((p, i) => `${i + 1}. ${p}`),
     "",
   ];
+  // Only the concerns a UI agent acts on — data/API rules would waste budget here.
+  const uiStack = plan.stack.filter((s) => ["styling", "ui-kit", "forms", "i18n", "state", "server-state"].includes(s.category));
+  if (uiStack.length) {
+    lines.push(
+      "## Stack Rules — Non-Negotiable",
+      "",
+      ...uiStack.map((s) => `- ${s.name}: ${s.rule}`),
+      "",
+    );
+  }
   if (plan.existingComponents.length) {
     const shown = plan.existingComponents.slice(0, 25);
     lines.push(
@@ -333,6 +366,7 @@ export function routingFromPlan(plan: UiPlan): string {
     pages: plan.pages,
     components: plan.components.map((c) => c.name),
     existingComponents: plan.existingComponents,
+    stack: plan.stack,
     palette: plan.palette,
     sources: plan.sources,
     signals: plan.signals,
