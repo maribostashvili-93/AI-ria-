@@ -8,19 +8,28 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the minimum declared in package.json engines — if it breaks
+        # there, the engines field is a lie. 22 is the current LTS.
+        node: [20, 22]
     defaults:
       run:
         working-directory: ai-ria
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # pnpm 11 requires Node >= 22.13, so it cannot install on the minimum
+      # Node version this package claims to support. pnpm 10 reads the same
+      # lockfile (v9) and runs on both.
       - uses: pnpm/action-setup@v4
         with:
-          version: 11
+          version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: pnpm
           cache-dependency-path: ai-ria/pnpm-lock.yaml
 
