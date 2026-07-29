@@ -28,10 +28,26 @@ function groupSum(entries: TokenLedgerEntry[], key: (e: TokenLedgerEntry) => str
   return out;
 }
 
+/**
+ * Keep only the newest ledger row per pack.
+ *
+ * The ledger is append-only, so re-running `analyze`/`orchestrate` rewrites the
+ * same packs and appends new rows. Summing every row would count the same
+ * saving once per run and report savings larger than the repository itself.
+ * Totals describe the CURRENT set of packs; `entryCount` still reports how many
+ * rows the ledger holds.
+ */
+function latestPerPack(entries: TokenLedgerEntry[]): TokenLedgerEntry[] {
+  const latest = new Map<string, TokenLedgerEntry>();
+  for (const e of entries) latest.set(`${e.agent}::${e.pack}`, e);
+  return [...latest.values()];
+}
+
 /** Aggregate the ledger into a token summary, with budget warnings. */
 export async function buildTokenSummary(root: string, agentFilter?: string): Promise<TokenSummary> {
-  let entries = await loadLedger(root);
-  if (agentFilter) entries = entries.filter((e) => e.agent === agentFilter.toLowerCase());
+  let allEntries = await loadLedger(root);
+  if (agentFilter) allEntries = allEntries.filter((e) => e.agent === agentFilter.toLowerCase());
+  const entries = latestPerPack(allEntries);
 
   const totalRawTokens = entries.reduce((s, e) => s + e.rawTokensBeforeCompression, 0);
   const totalCompressedTokens = entries.reduce((s, e) => s + e.compressedTokens, 0);
@@ -61,7 +77,7 @@ export async function buildTokenSummary(root: string, agentFilter?: string): Pro
 
   return {
     generatedAt: new Date().toISOString(),
-    entryCount: entries.length,
+    entryCount: allEntries.length,
     totalRawTokens,
     totalCompressedTokens,
     totalSavedTokens,

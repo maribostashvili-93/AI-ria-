@@ -18,7 +18,7 @@ const HEX_LITERAL = /#[0-9a-fA-F]{3,8}\b/g;
 
 const uiReview: Runner = async (root) => {
   const map = await scanRepo(root);
-  const design = await analyzeDesign(root);
+  const design = await analyzeDesign(root, map);
   const tokenValues = new Set(design.tokens.map((t) => t.value.toLowerCase()));
   const checks: SkillCheck[] = [];
   const evidence: SkillEvidence[] = [];

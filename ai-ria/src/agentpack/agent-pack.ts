@@ -83,7 +83,7 @@ export async function collectAgentPack(root: string): Promise<AgentPackData> {
 }
 
 /** Render the full AGENT_PACK.md. */
-export function agentPackToMarkdown(data: AgentPackData, root: string): string {
+export function agentPackToMarkdown(data: AgentPackData): string {
   const lines: string[] = [
     "# AGENT PACK",
     "",
@@ -104,7 +104,7 @@ export function agentPackToMarkdown(data: AgentPackData, root: string): string {
 /** `ria agent-pack` — write .ria/agent-pack/AGENT_PACK.md + agent-pack.json. */
 export async function buildAgentPack(root: string): Promise<{ data: AgentPackData; files: string[] }> {
   const data = await collectAgentPack(root);
-  const markdown = agentPackToMarkdown(data, root);
+  const markdown = agentPackToMarkdown(data);
   const files = [
     await writeRiaFile(root, "agent-pack/AGENT_PACK.md", markdown),
     await writeRiaFile(root, "agent-pack/agent-pack.json", JSON.stringify({

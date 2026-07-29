@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
-import { scanContent, scanAgentFile, scanSecurity } from "../src/security/scanner.js";
+import { scanContent, scanAgentFile, scanSecurity, isExcludedPath } from "../src/security/scanner.js";
 
 const SAMPLE = path.join(__dirname, "..", "examples", "sample-app");
 const DEMO = path.join(__dirname, "..", "examples", "demo-app");
@@ -47,6 +47,34 @@ describe("scanSecurity (v0.3, demo-app)", () => {
     expect(rules).toContain("world-writable-chmod");
     expect(rules).toContain("prompt-injection-override");
     expect(rules).toContain("unpinned-dependency");
+  });
+});
+
+describe("fixture noise suppression", () => {
+  it("excludes test, example and fixture paths by default", () => {
+    for (const p of ["tests/security.test.ts", "examples/demo-app/scripts/deploy.sh", "src/x.spec.ts", "__mocks__/db.ts", "vendor/lib.js"]) {
+      expect(isExcludedPath(p)).toBe(true);
+    }
+    for (const p of ["src/config.ts", "scripts/deploy.sh", "app/routes.js"]) {
+      expect(isExcludedPath(p)).toBe(false);
+    }
+  });
+
+  it("skips lines carrying the ignore marker", () => {
+    expect(scanContent("rules.ts", `const x = eval("1+1"); // ria-security-ignore`)).toHaveLength(0);
+    expect(scanContent("rules.ts", `const x = eval("1+1");`)).toHaveLength(1);
+  });
+
+  it("does not report AI RIA's own rule definitions or fixtures when scanning the package", async () => {
+    const report = await scanSecurity(path.join(__dirname, ".."));
+    expect(report.findings.filter((f) => f.file.startsWith("tests/"))).toHaveLength(0);
+    expect(report.findings.filter((f) => f.file.startsWith("examples/"))).toHaveLength(0);
+    expect(report.findings.filter((f) => f.file === "src/security/scanner.ts")).toHaveLength(0);
+  });
+
+  it("still reports fixtures when explicitly asked", async () => {
+    const report = await scanSecurity(path.join(__dirname, ".."), { includeFixtures: true });
+    expect(report.findings.some((f) => f.file.startsWith("examples/"))).toBe(true);
   });
 });
 

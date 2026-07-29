@@ -203,7 +203,7 @@ export const MCP_TOOL_REGISTRY: ReadonlyArray<{ name: string; register: ToolRegi
         async ({ path }) => {
           const { buildAgentPack, agentPackToMarkdown } = await import("../agentpack/agent-pack.js");
           const { data } = await buildAgentPack(path);
-          return text(agentPackToMarkdown(data, path));
+          return text(agentPackToMarkdown(data));
         },
       );
     },

@@ -1,5 +1,6 @@
 import { ContextPack, DesignReport, RepoMap, RiaSummary, RiaSummarySchema, SecurityReport } from "../core/types.js";
 import { compressRepoMap } from "../compression/compressor.js";
+import { VERSION } from "../core/version.js";
 
 const name = (map: RepoMap) => map.root.split(/[\\/]/).pop() ?? "project";
 
@@ -120,7 +121,7 @@ export function buildSummary(
 ): RiaSummary {
   return RiaSummarySchema.parse({
     tool: "ai-ria",
-    version: "0.2.0",
+    version: VERSION,
     generatedAt: new Date().toISOString(),
     root: map.root,
     framework: map.framework,

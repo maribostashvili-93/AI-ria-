@@ -83,6 +83,16 @@ describe("token report", () => {
     expect(md).toContain("Savings");
   });
 
+  it("does not multiply savings when the same pack is rebuilt", async () => {
+    const before = await buildTokenSummary(root);
+    await recordPackGeneration(root, { agent: "compact", pack: "COMPACT_CONTEXT.md", rawTokens: 100_000, compressedTokens: 5_000 });
+    const after = await buildTokenSummary(root);
+    expect(after.totalSavedTokens).toBe(before.totalSavedTokens);
+    expect(after.totalRawTokens).toBe(before.totalRawTokens);
+    // the ledger still keeps the full history
+    expect(after.entryCount).toBe(before.entryCount + 1);
+  });
+
   it("filters by agent and writes report files", async () => {
     const claudeOnly = await buildTokenSummary(root, "claude");
     expect(claudeOnly.entryCount).toBe(2);

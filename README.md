@@ -4,67 +4,132 @@
   <img src="./assets/airialogo.png" alt="AI RIA logo" width="520" />
 
   <p><strong>Runtime Intelligence for AI Agents</strong></p>
+
   <p>
-    A shared intelligence layer for AI coding agents with
-    <strong>Context Compression</strong>,
-    <strong>Layered Memory</strong>,
-    <strong>Agent Handoff</strong>,
-    <strong>Agent Pack</strong>,
-    <strong>Figma MCP Bridge</strong>,
-    <strong>Design Pack</strong>, and
-    <strong>Security Intelligence</strong>.
+    <a href="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml"><img src="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
+    <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
+    <img src="https://img.shields.io/badge/tests-105%20passing-brightgreen" alt="105 tests" />
   </p>
 
   <p>
-    <a href="./docs/Vision.md">Vision</a> •
+    <a href="#quick-start">Quick start</a> •
+    <a href="#what-it-does">What it does</a> •
+    <a href="#command-reference">Commands</a> •
     <a href="./docs/Architecture.md">Architecture</a> •
-    <a href="./docs/Roadmap.md">Roadmap</a> •
-    <a href="./ai-ria/README.md">CLI Docs</a>
+    <a href="./docs/Roadmap.md">Roadmap</a>
   </p>
 </div>
 
 ---
 
-<div align="center">
-  <h2>Agent Intelligence Layer</h2>
-  <p>
-    <strong>AI RIA is not another coding agent.</strong><br />
-    It prepares compressed project context, persistent memory, handoff state,
-    and design knowledge so the next agent can start fast and work consistently.
-  </p>
-</div>
+## The problem
 
-## What It Is
+Every AI coding agent starts from zero. It re-reads the repository, re-derives
+the architecture, re-discovers the design system, and forgets every decision the
+moment the session ends. Switch agents — Claude Code to Cursor, Cursor to Codex
+— and you pay for all of it again.
 
-AI RIA is an Agent Intelligence Layer that compresses context, preserves memory, routes agents, converts Figma into DESIGN.md, and visualizes project memory, tokens, security, and design knowledge.
+**AI RIA is not another coding agent.** It is the layer underneath them: it
+compresses a repository into a token-cheap knowledge folder, keeps memory across
+sessions, and hands one agent's state to the next.
 
-It is a CLI-first intelligence layer for multi-agent software workflows: repositories, design signals, and prior agent work become reusable `.ria/` artifacts that save tokens and reduce repeated analysis. The target shape of the system is described in [Plugin System](./docs/PluginSystem.md).
+```
+your-project/
+└── .ria/                 ← the shared knowledge layer every agent reads
+```
 
-The goal is simple:
+## What it does
 
-| Need | AI RIA Output |
+| Capability | What you get |
 | --- | --- |
-| Next-agent startup | `.ria/agent-pack/AGENT_PACK.md` |
-| Cheap repo context | `.ria/context-pack.md` |
-| Daily memory | `.ria/memory/short-memory.md` |
-| Active-task memory | `.ria/memory/working-memory.md` |
-| Deep project history | `.ria/memory/deep-memory.md` |
-| Structured handoff | `.ria/handoffs/latest.json` + `.ria/handoffs/HANDOFF.md` |
-| Visual/design transfer | `.ria/design/DESIGN_PACK.md` |
-| Token-aware reporting | `.ria/context/token-report.json` |
+| **Context compression** | A 2.6M-token repository becomes a ~12k-token pack that keeps the architecture, routes, components and conventions |
+| **Layered memory** | Decisions, warnings and design rules survive across sessions — split into short, working and deep layers |
+| **Agent handoff** | One agent stops, writes structured state; the next resumes without re-reading the repo |
+| **Agent pack** | `AGENT_PACK.md` — the single file the next agent reads before editing |
+| **Provider packs** | The same knowledge at each agent's token budget (Claude 12k, Cursor 8k, Codex 6k, compact 2.5k), always stating what was dropped |
+| **Figma bridge** | Design tokens from the Figma API *or* from plugin/MCP exports with no token at all |
+| **Security intelligence** | Secrets, unsafe commands, prompt injection in agent-instruction files — report only, never executed |
+| **Studio** | A local dashboard over `.ria/`: memory graph, routing, tokens, security, handoffs |
 
-## Core Capabilities
+Everything is deterministic. **AI RIA makes no LLM calls** — no API key, no
+inference cost, no non-reproducible output. It is static analysis plus
+bookkeeping, and it runs in seconds.
 
-| Capability | What it does |
-| --- | --- |
-| Context Compression | Converts large repositories into token-cheap context packs |
-| Layered Memory | Splits memory into short, working, and deep levels |
-| Conversation Compression | Distills long agent conversations into decisions, tasks, warnings, and next actions |
-| Agent Handoff | Creates a structured handoff another agent can resume from |
-| Agent Pack | Produces the main compressed file another agent should read before editing |
-| Figma MCP Bridge | Supports tokenless Figma/plugin/MCP exports as design input |
-| Design Pack | Converts visual knowledge into compact Markdown for implementation agents |
-| Security Intelligence | Surfaces risky files, secrets, unsafe commands, and policy issues |
+## Quick start
+
+Requires **Node.js ≥ 20**.
+
+```bash
+git clone https://github.com/maribostashvili-93/AI-ria-.git
+cd AI-ria-/ai-ria
+pnpm install
+```
+
+Point it at a project:
+
+```bash
+pnpm run ria -- analyze ./examples/demo-app
+```
+
+```text
+Checklist:
+  framework:          Next.js
+  routes:             2
+  components:         1
+  styles:             2
+  design tokens:      8
+  security findings:  6 (4 critical/high)
+  context pack:       ~525 tokens (raw ~620, ratio 0.8468)
+```
+
+*(The demo app ships intentional vulnerabilities so the scanner has something to
+find. On a clean repository it reports nothing — see [Real example](#real-example)
+for numbers from a 2,280-file project.)*
+
+Then run the agent workflow on your own project:
+
+```bash
+pnpm run ria -- analyze ../my-project
+pnpm run ria -- context build ../my-project
+pnpm run ria -- memory add ../my-project --title "Keep the shared layout" --type decision
+pnpm run ria -- handoff create ../my-project --task "Refactor header" --remaining "Responsive pass"
+pnpm run ria -- agent-pack ../my-project
+```
+
+Now tell your agent:
+
+```text
+Read .ria/agent-pack/AGENT_PACK.md before editing anything.
+```
+
+If it needs more, `.ria/memory/working-memory.md` and
+`.ria/memory/deep-memory.md` are next.
+
+### One command for a whole goal
+
+```bash
+pnpm run ria -- orchestrate ../my-project --goal "Build the dashboard UI from Figma"
+```
+
+Plans the work, routes it across agents, and builds exactly the packs those
+agents need:
+
+```text
+Plan: saas-dashboard | 6 pages, 8 components
+Routing: visual -> claude -> security -> compact
+VISUAL_CONTEXT.md:   ~2927 tokens (budget 10000)
+CLAUDE_CONTEXT.md:   ~2815 tokens (budget 12000)
+SECURITY_CONTEXT.md: ~2977 tokens (budget 6000)
+COMPACT_CONTEXT.md:  ~1933 tokens (budget 2500)
+```
+
+### See it
+
+```bash
+pnpm run ria -- studio ../my-project
+# AI RIA Studio running at http://localhost:3333
+```
 
 ## Architecture
 
@@ -99,233 +164,141 @@ flowchart TD
     H --> K
     I --> K
     J --> K
+    K --> A
 ```
 
-## Installation
+`ria analyze` walks the repository **once** and reuses that map for design
+analysis, security scanning and compression.
 
-AI RIA currently ships as a Node.js CLI in [`ai-ria`](./ai-ria/README.md).
-
-| Requirement | Version |
-| --- | --- |
-| Node.js | `>=20` |
-| npm / pnpm | Modern version |
-
-```bash
-cd ai-ria
-npm install
-npm run build
-```
-
-Run locally without global install:
-
-```bash
-node .\node_modules\tsx\dist\cli.mjs .\src\cli\index.ts --help
-```
-
-## Main Workflow
-
-This is the current intended agent workflow:
-
-```bash
-cd ai-ria
-
-npm run ria -- analyze ./my-project
-npm run ria -- context build ./my-project
-npm run ria -- memory add ./my-project --task "Refactor header" --decision "Keep shared layout" --reason "Avoid duplication"
-npm run ria -- memory compress-conversation ./my-project ./conversation.txt
-npm run ria -- handoff create ./my-project --task "Refactor header" --completed "Navbar cleanup" --remaining "Responsive pass"
-npm run ria -- design-pack ./my-project
-npm run ria -- agent-pack ./my-project
-```
-
-The next agent should normally start with:
+## What `.ria/` contains
 
 ```text
-.ria/agent-pack/AGENT_PACK.md
+.ria/
+├── AGENT_CONTEXT.md          # what an agent needs to know first
+├── ARCHITECTURE.md           # how the project is built
+├── FEATURES.md · AGENTS.md · DESIGN.md
+├── agent-pack/AGENT_PACK.md  # ← the file the next agent reads
+├── context/                  # ranked, budgeted context pack + token report
+├── exports/                  # CLAUDE_ · CURSOR_ · VISUAL_ · SECURITY_ · COMPACT_CONTEXT.md
+├── memory/                   # short · working · deep · graph · conversation summary
+├── handoffs/                 # latest.json + HANDOFF.md
+├── design/DESIGN_PACK.md     # design knowledge for UI agents
+├── figma/                    # imported tokens + summary
+├── visual/                   # decision → component → Figma node → code chains
+├── orchestration/            # agent routing + plan
+├── tokens/                   # ledger, budgets, savings report
+└── security-report.json · SECURITY_REPORT.md
 ```
 
-If it needs more memory:
-
-```text
-.ria/memory/working-memory.md
-.ria/memory/deep-memory.md
-```
-
-## CLI Surface
+## Command reference
 
 | Goal | Command |
 | --- | --- |
 | Full repo intelligence | `ria analyze <project>` |
-| Build compressed context | `ria context build <project>` |
-| Save memory entry | `ria memory add <project> --task ... --decision ...` |
-| Compress a conversation | `ria memory compress-conversation <project> <conversation-file>` |
-| Generate short memory | `ria memory short <project>` |
-| Generate working memory | `ria memory working <project>` |
-| Generate deep memory | `ria memory deep <project>` |
-| Build memory graph | `ria memory graph <project>` |
-| Create handoff | `ria handoff create <project> ...` |
-| Build design pack | `ria design-pack <project>` |
-| Build agent pack | `ria agent-pack <project>` |
-| Run security scan | `ria security <project>` |
-| Orchestrate agents for a goal | `ria orchestrate <project> --goal "..."` |
-| Visual agent pack | `ria pack visual <project>` |
-| Security agent pack | `ria pack security <project>` |
-| Build knowledge graph | `ria graph build <project>` |
-| Visual memory chains | `ria visual memory <project>` |
-| Design graph | `ria visual graph <project>` |
-| Studio dashboard | `ria studio <project>` → http://localhost:3333 |
-| Figma tokens to DESIGN.md | `ria figma to-design-md <project>` |
+| Build compressed context | `ria context build <project> [--budget 12000]` |
+| Save a memory | `ria memory add <project> --title "..." --type decision` |
+| Compress a conversation | `ria memory compress-conversation <project> <file>` |
+| Memory layers | `ria memory short\|working\|deep <project>` |
+| Memory graph | `ria memory graph <project>` |
+| Create / load handoff | `ria handoff create <project> --task "..."` · `ria handoff load <project>` |
+| The next-agent file | `ria agent-pack <project>` |
+| Provider pack | `ria pack claude\|cursor\|codex\|compact\|visual\|security <project>` |
+| Design pack | `ria design-pack <project>` |
+| Security scan | `ria security <project> [--fail-on high] [--include-fixtures]` |
+| Orchestrate a goal | `ria orchestrate <project> --goal "..."` |
+| Plan a new UI | `ria plan-ui <project> --goal "..."` |
+| Figma → DESIGN.md | `ria figma import <project> <export.json>` · `ria figma to-design-md <project>` |
+| Knowledge / design graph | `ria graph build <project>` · `ria visual memory <project>` |
+| Token report | `ria tokens report <project>` |
+| Studio dashboard | `ria studio <project> [--port 3333]` |
+| MCP server | `ria mcp` |
 
-## Tokenless Figma Workflow
+Full per-command reference: [`ai-ria/README.md`](./ai-ria/README.md).
 
-AI RIA can now work without a Figma API token if you provide plugin/MCP-exported JSON.
+## Tokenless Figma workflow
 
-Supported sources:
+No Figma API token needed if you can export JSON from a plugin or MCP bridge.
 
 | Source | Token required |
 | --- | --- |
 | Figma API via `figma extract --file` | Yes |
 | Local Figma export JSON | No |
-| Figma token JSON | No |
+| Figma token JSON (flat designer file) | No |
 | `cursor-talk-to-figma-mcp` wrapped output | No |
 
-### Tokenless import
+```bash
+ria figma import ./my-project ./figma-mcp-export.json
+ria figma to-design-md ./my-project
+ria agent-pack ./my-project
+```
+
+## Real example
+
+Run against a real 2,280-file project (`app Hot post`, last run 2026-07-29):
 
 ```bash
-node .\node_modules\tsx\dist\cli.mjs .\src\cli\index.ts figma import "C:\path\to\project" "C:\path\to\figma-mcp-export.json"
-node .\node_modules\tsx\dist\cli.mjs .\src\cli\index.ts design-pack "C:\path\to\project"
-node .\node_modules\tsx\dist\cli.mjs .\src\cli\index.ts agent-pack "C:\path\to\project"
+ria analyze "…/app Hot post"
+ria orchestrate "…/app Hot post" --goal "Build Hot post UI from Figma"
+ria studio "…/app Hot post" --port 3434
 ```
-
-Generated outputs:
-
-```text
-.ria/figma/figma-tokens.json
-.ria/figma/FIGMA_SUMMARY.md
-.ria/design-memory.json
-.ria/design/DESIGN_PACK.md
-.ria/agent-pack/AGENT_PACK.md
-```
-
-## Real Example
-
-AI RIA was tested on a real local project (last run: 2026-06-12):
-
-`C:\samushao\ფრონტ დველოპერი\app Hot post`
-
-Commands run:
-
-```bash
-ria analyze "C:\samushao\ფრონტ დველოპერი\app Hot post"
-ria orchestrate "C:\samushao\ფრონტ დველოპერი\app Hot post" --goal "Build Hot post UI from Figma"
-ria studio "C:\samushao\ფრონტ დველოპერი\app Hot post"
-```
-
-Observed output summary:
 
 | Metric | Result |
 | --- | --- |
-| Files | `2280` |
-| Lines | `236802` |
+| Files / lines | `2280` / `236802` |
 | Components | `52` |
 | Design tokens | `28` |
-| Security findings | `71` |
-| Critical / High | `13` |
-| Context pack | `~11878` vs `~2590037 raw` (ratio `0.0046`) |
-| Agent pack | `~3020` tokens |
-| Agent routing | `visual -> claude -> security -> compact` |
-| `VISUAL_CONTEXT.md` | `~3227` / 10000 budget |
-| `CLAUDE_CONTEXT.md` | `~3115` / 12000 budget |
-| `SECURITY_CONTEXT.md` | `~4379` / 6000 budget |
-| `COMPACT_CONTEXT.md` | `~2232` / 2500 budget |
-| Studio | all 8 pages served at `http://localhost:3434` |
+| Security findings | `5` (`3` critical/high) |
+| Context pack | `~11878` tokens vs `~2590037` raw (ratio `0.0046`) |
+| Agent routing | `visual → claude → security → compact` |
+| `VISUAL_CONTEXT.md` | `~2927` / 10000 budget |
+| `CLAUDE_CONTEXT.md` | `~2815` / 12000 budget |
+| `SECURITY_CONTEXT.md` | `~2977` / 6000 budget |
+| `COMPACT_CONTEXT.md` | `~1933` / 2500 budget |
+| `ria analyze` runtime | `~5.4s` |
 
-Token numbers are heuristic estimates (~4 chars/token for ASCII, denser for non-Latin text), not exact tokenizer counts — treat savings percentages as approximate.
+**How to read these numbers.** They are the honest version, and the caveats are
+part of the claim:
 
-## `.ria/` Output Example
+- Token counts are heuristic (~4 chars/token for ASCII, denser for non-Latin
+  text), not exact tokenizer output. Treat ratios as approximate.
+- `raw` is the cost of an agent reading every text file in the repository once.
+  Real agents read less, so the ratio is a ceiling on the saving, not a promise.
+- Security findings exclude tests, examples and fixtures by default. An earlier
+  release reported `71` findings here — most were fixture files and the
+  scanner's own rule definitions matching themselves.
+- The token ledger reports the **current** set of packs, so re-running
+  `orchestrate` no longer counts the same saving twice.
 
-```text
-.ria/
-├── AGENT_CONTEXT.md
-├── AGENTS.md
-├── ARCHITECTURE.md
-├── DESIGN.md
-├── FEATURES.md
-├── SECURITY_REPORT.md
-├── agent-pack/
-│   └── AGENT_PACK.md
-├── context/
-│   └── token-report.json
-├── context-pack.json
-├── context-pack.md
-├── design/
-│   └── DESIGN_PACK.md
-├── exports/
-│   ├── CLAUDE_CONTEXT.md
-│   ├── COMPACT_CONTEXT.md
-│   ├── SECURITY_CONTEXT.md
-│   └── VISUAL_CONTEXT.md
-├── figma/
-│   ├── FIGMA_SUMMARY.md
-│   └── figma-tokens.json
-├── handoffs/
-│   ├── HANDOFF.md
-│   └── latest.json
-├── memory/
-│   ├── conversation-summary.json
-│   ├── conversation-summary.md
-│   ├── deep-memory.md
-│   ├── memory-graph.json
-│   ├── memory-graph.md
-│   ├── short-memory.md
-│   └── working-memory.md
-├── orchestration/
-│   ├── ORCHESTRATION.md
-│   └── agent-routing.json
-├── tokens/
-│   ├── TOKEN_REPORT.md
-│   └── token-summary.json
-├── visual/
-│   ├── VISUAL_MEMORY.md
-│   ├── component-map.json
-│   ├── design-graph.json
-│   └── visual-memory.json
-├── repo-map.json
-├── repo-summary.md
-├── security-report.json
-└── summary.json
-```
+## Status
 
-## Roadmap Direction
+Working and covered by tests: repository intelligence, context compression,
+memory layers and graph, handoff, agent and provider packs, Figma import,
+security scanning, token accounting, Studio, MCP server.
 
-| Direction | Why it matters |
-| --- | --- |
-| Better next-agent startup | Reduce repeated prompt and repo setup cost |
-| Stronger memory layers | Preserve project decisions across agent sessions |
-| Better Figma bridge | Move design knowledge into token-cheap agent artifacts |
-| Cleaner handoff | Let one agent stop and another resume without loss |
-| Stronger security posture | Keep risky changes visible before merge |
+Known limits, stated plainly:
 
-## Contributing
+- **Planning is keyword-based.** `plan-ui` and `orchestrate` match a goal
+  against five built-in project templates (LMS, e-commerce, SaaS dashboard,
+  landing, finance). It is a useful starting scaffold, not project-shape
+  inference. This is the biggest open area — see [Contributing](./CONTRIBUTING.md).
+- **Token counts are estimates**, not tokenizer output.
+- **Security rules are regex-based** — good for secrets, unsafe commands and
+  prompt injection in agent files; not a replacement for a real SAST tool.
+- Not yet published to npm; install from source.
 
-Most useful contribution areas right now:
+See [Roadmap](./docs/Roadmap.md) for where it goes next.
 
-| Area | Examples |
-| --- | --- |
-| Agent workflow | Agent pack quality, handoff shape, memory recall |
-| Compression | Token budgeting, relevance filtering, preservation rules |
-| Figma bridge | MCP export adapters, token extraction, design summaries |
-| Design transfer | Better design-pack generation, component rules, visual constraints |
-| Security | Higher-signal findings, risk grouping, policy rules |
-
-Suggested workflow:
+## Development
 
 ```bash
 cd ai-ria
-npm install
-npm run build
-pnpm test
+pnpm install
+pnpm run verify      # typecheck + lint + 105 tests
+pnpm run build
 ```
+
+CI runs the same steps plus a build and a self security scan on every pull
+request ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)).
 
 ## Docs
 
@@ -333,10 +306,18 @@ pnpm test
 | --- | --- |
 | [Vision](./docs/Vision.md) | Why AI RIA exists |
 | [Architecture](./docs/Architecture.md) | System shape |
+| [Principles](./docs/Principles.md) | The tiebreakers behind design decisions |
 | [Roadmap](./docs/Roadmap.md) | Versioned direction |
-| [Plugin System](./docs/PluginSystem.md) | Target plugin architecture + Studio dashboard plan |
-| [CLI README](./ai-ria/README.md) | Package-level usage |
+| [Plugin System](./docs/PluginSystem.md) | Target plugin architecture + Studio plan |
+| [CLI reference](./ai-ria/README.md) | Every command, flag and output file |
+| [Changelog](./CHANGELOG.md) | What changed, and what was fixed |
+
+## Contributing
+
+Contributions are welcome — start with [CONTRIBUTING.md](./CONTRIBUTING.md).
+The most useful areas right now are compression quality, memory recall, and
+replacing keyword-based planning with real project inference.
 
 ## License
 
-The CLI package in `ai-ria/` is licensed under `MIT`.
+[MIT](./LICENSE) © Mariam Bostashvili

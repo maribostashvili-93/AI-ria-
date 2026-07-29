@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { VERSION } from "../core/version.js";
 import { studioData, studioDesignMemory, STUDIO_ENDPOINTS, StudioEndpoint } from "./api.js";
 import { STUDIO_HTML } from "./ui.js";
 
@@ -40,14 +41,6 @@ function resolveGsap(): string | null {
   }
 }
 
-async function packageVersion(): Promise<string> {
-  try {
-    return JSON.parse(await fs.readFile(path.join(PACKAGE_ROOT, "package.json"), "utf8")).version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-}
-
 /**
  * `ria studio` — local read-only dashboard over the project's `.ria/` layer.
  * One embedded HTML page + a JSON API; gsap is served from the package's own
@@ -78,7 +71,7 @@ export function createStudioServer(root: string): Server {
         return send(200, JSON.stringify({
           name: path.basename(path.resolve(root)),
           root: path.resolve(root),
-          version: await packageVersion(),
+          version: VERSION,
           hasLogo: Boolean(await findLogo(root)),
         }), "application/json");
       }
