@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { DesignReport, DesignReportSchema, DesignToken } from "../core/types.js";
+import { DesignReport, DesignReportSchema, DesignToken, RepoMap } from "../core/types.js";
 import { scanRepo, findDesignDoc } from "../repo/scanner.js";
 
 const TOKEN_PATTERN = /(--[a-z0-9-]+)\s*:\s*([^;]+);/gi;
@@ -16,10 +16,13 @@ export function extractTokens(source: string, content: string): DesignToken[] {
   return tokens;
 }
 
-/** Analyze a repository's design system surface. */
-export async function analyzeDesign(root: string): Promise<DesignReport> {
+/**
+ * Analyze a repository's design system surface.
+ * Pass an already-built `RepoMap` to avoid a second full disk scan.
+ */
+export async function analyzeDesign(root: string, repoMap?: RepoMap): Promise<DesignReport> {
   const absRoot = path.resolve(root);
-  const map = await scanRepo(absRoot);
+  const map = repoMap ?? (await scanRepo(absRoot));
 
   const designDocPath = await findDesignDoc(absRoot);
 

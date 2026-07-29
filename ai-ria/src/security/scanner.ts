@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { SecurityFinding, SecurityReport, SecurityReportSchema } from "../core/types.js";
+import { RepoMap, SecurityFinding, SecurityReport, SecurityReportSchema } from "../core/types.js";
 import { scanRepo } from "../repo/scanner.js";
 
 interface Rule {
@@ -15,11 +15,11 @@ export const RULES: Rule[] = [
   { id: "aws-access-key", severity: "critical", pattern: /\bAKIA[0-9A-Z]{16}\b/, message: "Possible AWS access key ID committed to source" },
   { id: "private-key-block", severity: "critical", pattern: /-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY/, message: "Private key material in source" },
   { id: "hardcoded-secret", severity: "high", pattern: /(?:api[_-]?key|secret|password|auth[_-]?token)\s*[:=]\s*["'][^"']{8,}["']/i, message: "Possible hardcoded secret — move to environment variables" },
-  { id: "eval-usage", severity: "medium", pattern: /\beval\s*\(/, message: "eval() usage — code injection risk" },
+  { id: "eval-usage", severity: "medium", pattern: /\beval\s*\(/, message: "eval() usage — code injection risk" }, // ria-security-ignore
   { id: "insecure-http-url", severity: "low", pattern: /["']http:\/\/(?!localhost|127\.0\.0\.1)[^"']+["']/, message: "Insecure http:// URL — prefer https://" },
   { id: "curl-pipe-shell", severity: "critical", pattern: /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b/, message: "Remote script piped into a shell — supply-chain risk" },
   { id: "dangerous-rm", severity: "high", pattern: /\brm\s+-rf\s+(?:\/(?!tmp)|~|\$HOME)/, message: "Destructive rm -rf on home or filesystem root" },
-  { id: "world-writable-chmod", severity: "medium", pattern: /\bchmod\s+(?:-R\s+)?777\b/, message: "chmod 777 — world-writable permissions" },
+  { id: "world-writable-chmod", severity: "medium", pattern: /\bchmod\s+(?:-R\s+)?777\b/, message: "chmod 777 — world-writable permissions" }, // ria-security-ignore
 ];
 
 /** Prompt-injection patterns checked only in agent-instruction files. */
@@ -37,9 +37,29 @@ const SCANNABLE_EXTS = new Set([
   ".yml", ".yaml", ".sh", ".py", ".rb", ".go", ".rs",
 ]);
 
+/**
+ * Paths whose findings are fixtures, not production risk. Test suites and
+ * example apps deliberately contain fake keys and unsafe commands; reporting
+ * them buries the real findings and makes `ria security` fail CI forever.
+ */
+export const DEFAULT_EXCLUDES: RegExp[] = [
+  /(^|\/)(tests?|__tests__|__mocks__|mocks|fixtures|__fixtures__|examples?|samples?|demo|demos)\//i,
+  /\.(test|spec)\.[cm]?[jt]sx?$/i,
+  /(^|\/)(vendor|third[-_]party)\//i,
+];
+
+/** Lines carrying this marker are skipped — used by rule definitions themselves. */
+const IGNORE_MARKER = "ria-security-ignore";
+
+/** True when the file is a fixture/test path that should not produce findings. */
+export function isExcludedPath(file: string, extraExcludes: RegExp[] = []): boolean {
+  return [...DEFAULT_EXCLUDES, ...extraExcludes].some((re) => re.test(file));
+}
+
 function applyRules(file: string, content: string, rules: Rule[]): SecurityFinding[] {
   const findings: SecurityFinding[] = [];
   content.split("\n").forEach((lineText, i) => {
+    if (lineText.includes(IGNORE_MARKER)) return;
     for (const rule of rules) {
       if (rule.pattern.test(lineText)) {
         findings.push({
@@ -70,15 +90,25 @@ async function exists(p: string): Promise<boolean> {
   try { await fs.access(p); return true; } catch { return false; }
 }
 
+export interface SecurityScanOptions {
+  /** Reuse an already-built repo map instead of rescanning the disk. */
+  map?: RepoMap;
+  /** Extra path patterns to exclude on top of `DEFAULT_EXCLUDES`. */
+  exclude?: RegExp[];
+  /** Scan fixture/test/example paths too (off by default — they are noise). */
+  includeFixtures?: boolean;
+}
+
 /** v0.3: full security scan. Scan and report only — never executes anything. */
-export async function scanSecurity(root: string): Promise<SecurityReport> {
+export async function scanSecurity(root: string, options: SecurityScanOptions = {}): Promise<SecurityReport> {
   const absRoot = path.resolve(root);
-  const map = await scanRepo(absRoot);
+  const map = options.map ?? (await scanRepo(absRoot));
   const findings: SecurityFinding[] = [];
   let scannedFiles = 0;
+  const skip = (file: string) => !options.includeFixtures && isExcludedPath(file, options.exclude);
 
   // 1) Exposed .env files
-  const envFiles = map.files.filter((f) => /(^|\/)\.env(\.|$)/.test(f.path) && !f.path.endsWith(".example"));
+  const envFiles = map.files.filter((f) => /(^|\/)\.env(\.|$)/.test(f.path) && !f.path.endsWith(".example") && !skip(f.path));
   if (envFiles.length) {
     let gitignore = "";
     if (await exists(path.join(absRoot, ".gitignore"))) {
@@ -100,7 +130,7 @@ export async function scanSecurity(root: string): Promise<SecurityReport> {
 
   // 2) Code + script files
   for (const f of map.files) {
-    if (!SCANNABLE_EXTS.has(f.ext)) continue;
+    if (!SCANNABLE_EXTS.has(f.ext) || skip(f.path)) continue;
     scannedFiles++;
     const content = await fs.readFile(path.join(absRoot, f.path), "utf8");
     findings.push(...scanContent(f.path, content));
@@ -127,7 +157,7 @@ export async function scanSecurity(root: string): Promise<SecurityReport> {
 
   // 4) Prompt injection in agent-instruction files
   for (const f of map.files) {
-    if (!AGENT_FILES.test(f.path)) continue;
+    if (!AGENT_FILES.test(f.path) || skip(f.path)) continue;
     scannedFiles++;
     const content = await fs.readFile(path.join(absRoot, f.path), "utf8");
     findings.push(...scanAgentFile(f.path, content));

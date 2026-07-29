@@ -1,9 +1,19 @@
 {
   "name": "ai-ria",
-  "version": "0.1.0",
-  "description": "AI RIA — Runtime Intelligence Assistant. An intelligence layer for AI coding agents: repository intelligence, context compression, design awareness, security checks.",
+  "version": "0.2.0",
+  "description": "Agent Intelligence Layer for AI coding agents: context compression, layered memory, agent handoff, Figma bridge and security intelligence — all written to a shared .ria/ knowledge folder.",
   "type": "module",
   "license": "MIT",
+  "author": "Mariam Bostashvili",
+  "homepage": "https://github.com/maribostashvili-93/AI-ria-#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maribostashvili-93/AI-ria-.git",
+    "directory": "ai-ria"
+  },
+  "bugs": {
+    "url": "https://github.com/maribostashvili-93/AI-ria-/issues"
+  },
   "engines": {
     "node": ">=20"
   },
@@ -11,31 +21,57 @@
     "ria": "./dist/cli/index.js"
   },
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx src/cli/index.ts",
     "ria": "tsx src/cli/index.ts",
     "build": "tsc",
+    "lint": "eslint src tests",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run lint && npm run test",
+    "prepublishOnly": "npm run verify && npm run build"
   },
   "keywords": [
     "ai",
-    "agents",
-    "cli",
-    "repository-intelligence",
+    "ai-agents",
+    "agent-memory",
     "context-compression",
+    "cli",
+    "mcp",
+    "model-context-protocol",
+    "repository-intelligence",
     "design-system",
+    "figma",
     "security"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "commander": "^12.1.0",
+    "gsap": "^3.15.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^20.14.0",
+    "eslint": "^9.39.5",
     "tsx": "^4.16.0",
     "typescript": "^5.5.4",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^2.1.0"
   }
 }

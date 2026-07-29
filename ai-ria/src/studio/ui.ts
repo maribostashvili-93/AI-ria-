@@ -1,7 +1,9 @@
 /**
  * AI RIA Studio — embedded single-file dashboard.
- * Zero runtime dependencies: vanilla JS, hash routing, custom SVG force graph.
- * Reads the same /api/* JSON the future Next.js/React Flow studio will use.
+ * Zero build step: vanilla JS, hash routing, custom SVG force graph.
+ * Branding: logo auto-discovered from assets/ and served at /logo.
+ * Motion: gsap served from the package's node_modules at /vendor/gsap.min.js;
+ * every animation is skipped under prefers-reduced-motion or if gsap is absent.
  */
 export const STUDIO_HTML = `<!doctype html>
 <html lang="en">
@@ -9,6 +11,8 @@ export const STUDIO_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AI RIA Studio</title>
+<link rel="icon" href="/logo" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <style>
   :root {
     --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3;
@@ -17,13 +21,24 @@ export const STUDIO_HTML = `<!doctype html>
   }
   * { box-sizing: border-box; margin: 0; }
   body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; display: flex; min-height: 100vh; }
-  nav { width: 220px; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 0; position: fixed; top: 0; bottom: 0; }
-  nav h1 { font-size: 16px; padding: 0 16px 12px; color: var(--accent); }
-  nav h1 small { display: block; color: var(--muted); font-weight: normal; font-size: 11px; }
+  nav { width: 220px; background: var(--panel); border-right: 1px solid var(--border); padding: 16px 0; position: fixed; top: 0; bottom: 0; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 16px 14px; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; }
+  .brand b { color: var(--accent); font-size: 15px; }
+  .brand small { display: block; color: var(--muted); font-weight: normal; font-size: 10px; }
   nav a { display: block; padding: 8px 16px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; }
   nav a:hover { color: var(--text); }
   nav a.active { color: var(--text); border-left-color: var(--accent); background: rgba(252,194,4,.06); }
-  main { margin-left: 220px; padding: 24px; flex: 1; min-width: 0; }
+  nav .spacer { flex: 1; }
+  .wrap { margin-left: 220px; flex: 1; min-width: 0; }
+  header { display: flex; align-items: center; gap: 14px; padding: 14px 24px; border-bottom: 1px solid var(--border); background: rgba(22,27,34,.6); }
+  header img { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; }
+  header .t b { font-size: 15px; }
+  header .t span { display: block; color: var(--muted); font-size: 11px; }
+  header .hstats { margin-left: auto; display: flex; gap: 18px; color: var(--muted); font-size: 12px; text-align: right; }
+  header .hstats b { display: block; color: var(--text); font-size: 15px; }
+  header .hstats .good b { color: var(--green); }
+  main { padding: 24px; }
   h2 { font-size: 18px; margin-bottom: 4px; }
   .sub { color: var(--muted); margin-bottom: 20px; font-size: 12px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 24px; }
@@ -47,11 +62,24 @@ export const STUDIO_HTML = `<!doctype html>
   .chain .hop { color: var(--muted); margin: 0 6px; }
   ul.plain { list-style: none; } ul.plain li { padding: 3px 0; }
   .pill { display: inline-block; background: rgba(88,166,255,.15); color: var(--blue); border-radius: 10px; padding: 1px 8px; font-size: 12px; margin: 2px; }
+  #splash { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  #splash img { width: 96px; height: 96px; border-radius: 18px; object-fit: contain; }
+  #splash .st { color: var(--accent); font-size: 18px; font-weight: 600; }
+  #splash .ss { color: var(--muted); font-size: 12px; }
+  .about-logo { width: 120px; height: 120px; border-radius: 20px; object-fit: contain; margin-bottom: 14px; }
 </style>
 </head>
 <body>
+<div id="splash">
+  <img src="/logo" onerror="this.style.display='none'" alt="" />
+  <div class="st">AI RIA Studio</div>
+  <div class="ss">Agent Intelligence Layer</div>
+</div>
 <nav>
-  <h1>AI RIA Studio<small id="proj"></small></h1>
+  <div class="brand">
+    <img src="/logo" onerror="this.style.display='none'" alt="" />
+    <div><b>AI RIA Studio</b><small id="proj"></small></div>
+  </div>
   <a href="#/overview">Overview</a>
   <a href="#/memory-graph">Memory Graph</a>
   <a href="#/routing">Agent Routing</a>
@@ -60,13 +88,25 @@ export const STUDIO_HTML = `<!doctype html>
   <a href="#/tokens">Token Usage</a>
   <a href="#/security">Security</a>
   <a href="#/handoff">Handoffs</a>
+  <div class="spacer"></div>
+  <a href="#/about">About</a>
 </nav>
-<main id="view">Loading…</main>
+<div class="wrap">
+  <header>
+    <img src="/logo" onerror="this.style.display='none'" alt="" />
+    <div class="t"><b>AI RIA Studio</b><span>Agent Intelligence Layer</span></div>
+    <div class="hstats" id="hstats"></div>
+  </header>
+  <main id="view">Loading…</main>
+</div>
+<script src="/vendor/gsap.min.js" onerror="window.gsap = undefined"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const api = (e) => fetch("/api/" + e).then((r) => r.json());
 const fmt = (n) => Number(n ?? 0).toLocaleString("en-US");
+const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const motion = () => !REDUCE && typeof gsap !== "undefined";
 
 const KIND_COLORS = {
   memory: "#58a6ff", agent: "#fcc204", handoff: "#f85149", design: "#bc8cff",
@@ -108,8 +148,8 @@ function forceGraph(graph, height) {
     const c = KIND_COLORS[n.kind] || "#8b949e";
     const r = 5 + Math.min(n.importance || 4, 10);
     const label = (n.label || n.id).slice(0, 28);
-    return '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + c + '" fill-opacity="0.85"><title>' + esc(n.label || n.id) + "</title></circle>" +
-      '<text x="' + n.x + '" y="' + (n.y - r - 4) + '" fill="#e6edf3" font-size="10" text-anchor="middle">' + esc(label) + "</text>";
+    return '<g class="gnode"><circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + c + '" fill-opacity="0.85"><title>' + esc(n.label || n.id) + "</title></circle>" +
+      '<text x="' + n.x + '" y="' + (n.y - r - 4) + '" fill="#e6edf3" font-size="10" text-anchor="middle">' + esc(label) + "</text></g>";
   }).join("");
   const kinds = [...new Set(nodes.map((n) => n.kind))];
   const legend = kinds.map((k) => '<span><i style="background:' + (KIND_COLORS[k] || "#8b949e") + '"></i>' + esc(k) + "</span>").join("");
@@ -117,6 +157,7 @@ function forceGraph(graph, height) {
 }
 
 const card = (k, v, cls) => '<div class="card ' + (cls || "") + '"><div class="v">' + v + '</div><div class="k">' + esc(k) + "</div></div>";
+const ncard = (k, n, cls) => '<div class="card ' + (cls || "") + '"><div class="v" data-count="' + Number(n || 0) + '">' + fmt(n) + '</div><div class="k">' + esc(k) + "</div></div>";
 const empty = (hint) => '<div class="empty">No data yet — <code>' + esc(hint) + "</code></div>";
 
 const pages = {
@@ -124,14 +165,14 @@ const pages = {
     const o = await api("overview");
     const types = Object.entries(o.memoriesByType || {}).map(([t, n]) => '<span class="pill">' + esc(t) + ": " + n + "</span>").join(" ");
     return "<h2>Overview</h2><p class='sub'>" + esc(o.generatedAt) + "</p><div class='cards'>" +
-      card("Memories", fmt(o.memories), "accent") +
-      card("Tokens saved", fmt(o.tokensSaved), "good") +
+      ncard("Memories", o.memories, "accent") +
+      ncard("Tokens saved", o.tokensSaved, "good") +
       card("Savings", (o.savingsPercent ?? 0) + "%", "good") +
-      card("Components", fmt(o.components)) +
+      ncard("Components", o.components) +
+      ncard("Active agents", o.activeAgents, o.activeAgents ? "accent" : "") +
       card("Security findings", o.securityFindings === null ? "—" : fmt(o.securityFindings), o.securityCriticalOrHigh ? "bad" : "") +
       card("Critical / High", o.securityCriticalOrHigh === null ? "—" : fmt(o.securityCriticalOrHigh), o.securityCriticalOrHigh ? "bad" : "good") +
       card("Figma imported", o.figmaImported ? "yes" : "no", o.figmaImported ? "good" : "") +
-      card("Agents routed", o.routed ? "yes" : "no", o.routed ? "good" : "") +
       "</div>" +
       (o.activeTask ? "<h2>Active Task</h2><div class='chain'><b>" + esc(o.activeTask) + "</b></div>" : "") +
       (types ? "<h2>Memory Types</h2><p>" + types + "</p>" : "");
@@ -166,7 +207,7 @@ const pages = {
     if (f.missing) return "<h2>Figma Design</h2>" + empty(f.missing);
     const section = (title, items, render) => items && items.length ? "<h2 style='margin-top:18px'>" + title + "</h2><ul class='plain'>" + items.map(render).join("") + "</ul>" : "";
     return "<h2>Figma Design</h2><p class='sub'>Source: " + esc(f.source) + " · " + esc(f.importedAt) + "</p>" +
-      "<div class='cards'>" + card("Colors", f.colors.length) + card("Typography", f.typography.length) + card("Spacing", f.spacing.length) + card("Components", f.components.length) + "</div>" +
+      "<div class='cards'>" + ncard("Colors", f.colors.length) + ncard("Typography", f.typography.length) + ncard("Spacing", f.spacing.length) + ncard("Components", f.components.length) + "</div>" +
       section("Colors", f.colors, (t) => "<li><span style='display:inline-block;width:12px;height:12px;border-radius:3px;background:" + esc(t.value) + ";margin-right:8px;vertical-align:middle'></span><code>" + esc(t.name) + "</code> = " + esc(t.value) + "</li>") +
       section("Typography", f.typography, (t) => "<li><code>" + esc(t.name) + "</code> — " + esc(t.fontFamily) + " " + (t.fontSize || "") + "</li>") +
       section("Components", f.components, (c) => "<li><span class='pill'>" + esc(c.name) + "</span> " + esc(c.type) + "</li>");
@@ -177,8 +218,8 @@ const pages = {
     const packs = Object.entries(t.byPack || {}).sort((a, b) => b[1] - a[1]).map(([p, n]) => "<tr><td><code>" + esc(p) + "</code></td><td>" + fmt(n) + "</td></tr>").join("");
     const agents = Object.entries(t.byAgent || {}).map(([a, s]) => "<tr><td>" + esc(a) + "</td><td>" + s.entries + "</td><td>" + fmt(s.compressedTokens) + "</td><td>" + fmt(s.savedTokens) + "</td></tr>").join("");
     return "<h2>Token Usage</h2><p class='sub'>" + t.entryCount + " ledger entries</p><div class='cards'>" +
-      card("Raw tokens", fmt(t.totalRawTokens)) + card("Compressed", fmt(t.totalCompressedTokens), "accent") +
-      card("Saved", fmt(t.totalSavedTokens), "good") + card("Savings", t.savingsPercent + "%", "good") + "</div>" +
+      ncard("Raw tokens", t.totalRawTokens) + ncard("Compressed", t.totalCompressedTokens, "accent") +
+      ncard("Saved", t.totalSavedTokens, "good") + card("Savings", t.savingsPercent + "%", "good") + "</div>" +
       "<h2>By Pack</h2><table><tr><th>Pack</th><th>Tokens</th></tr>" + packs + "</table>" +
       "<h2 style='margin-top:20px'>By Agent</h2><table><tr><th>Agent</th><th>Entries</th><th>Compressed</th><th>Saved</th></tr>" + agents + "</table>" +
       (t.warnings || []).map((w) => "<p style='color:var(--orange);margin-top:10px'>⚠ " + esc(w) + "</p>").join("");
@@ -190,7 +231,10 @@ const pages = {
     for (const f of s.findings || []) counts[f.severity] = (counts[f.severity] || 0) + 1;
     const rows = (s.findings || []).slice(0, 100).map((f) => "<tr><td class='sev-" + esc(f.severity) + "'>" + esc(f.severity) + "</td><td>" + esc(f.rule) + "</td><td><code>" + esc(f.file) + ":" + f.line + "</code></td><td>" + esc(f.message) + "</td></tr>").join("");
     return "<h2>Security</h2><p class='sub'>" + (s.findings || []).length + " findings · scanned " + (s.scannedFiles ?? "?") + " files</p>" +
-      "<div class='cards'>" + ["critical", "high", "medium", "low"].map((sev) => card(sev, counts[sev] || 0, counts[sev] && (sev === "critical" || sev === "high") ? "bad" : "")).join("") + "</div>" +
+      "<div class='cards'>" + ["critical", "high", "medium", "low"].map((sev) => {
+        const danger = counts[sev] && (sev === "critical" || sev === "high");
+        return '<div class="card ' + (danger ? "bad sev-flash" : "") + '"><div class="v">' + (counts[sev] || 0) + '</div><div class="k">' + sev + "</div></div>";
+      }).join("") + "</div>" +
       (rows ? "<table><tr><th>Severity</th><th>Rule</th><th>Location</th><th>Message</th></tr>" + rows + "</table>" : "<div class='empty'>✅ No findings.</div>");
   },
   async handoff() {
@@ -202,7 +246,56 @@ const pages = {
       list("Completed", h.completed, "✅") + list("Remaining", h.remaining, "⬜") +
       list("Warnings", h.warnings, "⚠") + list("Decisions", h.decisions, "•") + list("Files to avoid", h.filesToAvoid, "🚫");
   },
+  async about() {
+    const p = await fetch("/api/project").then((r) => r.json());
+    return "<h2>About</h2><p class='sub'>AI RIA Studio</p>" +
+      "<div style='text-align:center;padding:30px 0'>" +
+      (p.hasLogo ? "<img class='about-logo' src='/logo' alt='AI RIA' />" : "") +
+      "<h2 style='color:var(--accent)'>AI RIA v" + esc(p.version) + "</h2>" +
+      "<p class='sub'>Agent Intelligence Layer</p>" +
+      "<p style='max-width:520px;margin:14px auto;color:var(--muted)'>AI RIA compresses context, preserves memory, routes agents, converts Figma into DESIGN.md, and visualizes project memory, tokens, security, and design knowledge.</p>" +
+      "<p class='sub'>Project: <code>" + esc(p.root) + "</code></p>" +
+      "</div>";
+  },
 };
+
+/* ---------- motion (gsap; skipped under reduced-motion or when offline) ---------- */
+
+function countUp(el) {
+  const target = Number(el.dataset.count || 0);
+  if (!target) return;
+  const o = { v: 0 };
+  gsap.to(o, { v: target, duration: 0.9, ease: "power2.out", onUpdate: () => { el.textContent = fmt(Math.round(o.v)); } });
+}
+
+function animate(route) {
+  if (!motion()) return;
+  const cards = document.querySelectorAll(".card");
+  if (cards.length) gsap.from(cards, { opacity: 0, y: 14, duration: 0.45, stagger: 0.06, ease: "power2.out", clearProps: "all" });
+  document.querySelectorAll("[data-count]").forEach(countUp);
+  const nodes = document.querySelectorAll("svg.graph .gnode");
+  if (nodes.length) gsap.from(nodes, { opacity: 0, scale: 0.4, transformOrigin: "center", duration: 0.5, stagger: 0.02, ease: "back.out(1.6)", clearProps: "all" });
+  const rows = document.querySelectorAll("table tr");
+  if (route === "routing" && rows.length) gsap.from(rows, { opacity: 0, x: -12, duration: 0.35, stagger: 0.07, ease: "power2.out", clearProps: "all" });
+  const chains = document.querySelectorAll(".chain");
+  if (chains.length) gsap.from(chains, { opacity: 0, y: 10, duration: 0.4, stagger: 0.08, ease: "power2.out", clearProps: "all" });
+  const flash = document.querySelectorAll(".sev-flash");
+  if (flash.length) gsap.fromTo(flash, { boxShadow: "0 0 0 0 rgba(248,81,73,0)" }, { boxShadow: "0 0 0 4px rgba(248,81,73,.35)", duration: 0.5, repeat: 3, yoyo: true, ease: "power1.inOut", clearProps: "boxShadow" });
+}
+
+function splash() {
+  const el = $("#splash");
+  if (!el) return;
+  // hard guarantee: the splash never blocks the dashboard (rAF can be
+  // throttled in background tabs, which would freeze the gsap timeline)
+  setTimeout(() => { const s = $("#splash"); if (s) s.remove(); }, 2500);
+  if (!motion()) return void el.remove();
+  gsap.timeline()
+    .from(el.children, { opacity: 0, y: 10, scale: 0.94, duration: 0.5, stagger: 0.12, ease: "power2.out" })
+    .to(el, { opacity: 0, duration: 0.4, delay: 0.35, ease: "power1.in", onComplete: () => el.remove() });
+}
+
+/* ---------- routing ---------- */
 
 async function render() {
   const route = (location.hash || "#/overview").slice(2);
@@ -210,11 +303,25 @@ async function render() {
   const page = pages[route] || pages.overview;
   try {
     $("#view").innerHTML = await page();
+    animate(route);
   } catch (e) {
     $("#view").innerHTML = "<div class='empty'>Failed to load: " + esc(e.message) + "</div>";
   }
 }
-fetch("/api/project").then((r) => r.json()).then((p) => { $("#proj").textContent = p.name; });
+
+async function header() {
+  try {
+    const [p, o] = await Promise.all([fetch("/api/project").then((r) => r.json()), api("overview")]);
+    $("#proj").textContent = p.name;
+    $("#hstats").innerHTML =
+      "<div><b>" + esc(p.name) + "</b>Project</div>" +
+      "<div class='good'><b>" + (o.savingsPercent ?? 0) + "%</b>Token savings</div>" +
+      "<div><b>" + (o.activeAgents ?? 0) + "</b>Active agents</div>";
+  } catch { /* header is decorative */ }
+}
+
+splash();
+header();
 addEventListener("hashchange", render);
 render();
 </script>

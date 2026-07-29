@@ -10,6 +10,7 @@ import { recordPackGeneration } from "../tokens/token-ledger.js";
 import { writeTokenReport } from "../tokens/token-report.js";
 import { securityToMarkdown } from "../output/markdown.js";
 import { toJson } from "../output/json.js";
+import { RepoMap } from "../core/types.js";
 
 /** Plan agents map onto provider packs; unknown agents fall back to compact. */
 const AGENT_TO_PROVIDER: Record<string, Provider> = {
@@ -79,10 +80,13 @@ export async function orchestrate(root: string, goal: string): Promise<Orchestra
   const { plan, files } = await writeUiPlan(root, goal);
   const routedProviders = routeProviders(plan);
 
-  // compressed repo context (skip silently for empty projects)
+  // compressed repo context (skip silently for empty projects).
+  // The map is scanned once here and reused by the security pass below.
   let contextTokens: OrchestrationResult["contextTokens"] = null;
+  let repoMap: RepoMap | undefined;
   try {
     const map = await scanRepo(root);
+    repoMap = map;
     if (map.fileCount > 0) {
       const pack = await buildContextPackV2(root, map, 12000);
       files.push(
@@ -98,7 +102,7 @@ export async function orchestrate(root: string, goal: string): Promise<Orchestra
   // the security pack reads security-report.json — refresh it when a security agent is routed
   let securityFindings = 0;
   if (routedProviders.includes("security")) {
-    const report = await scanSecurity(root);
+    const report = await scanSecurity(root, { map: repoMap });
     securityFindings = report.findings.length;
     files.push(
       await writeRiaFile(root, "security-report.json", toJson(report)),

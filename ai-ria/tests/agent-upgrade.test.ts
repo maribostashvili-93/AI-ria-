@@ -15,7 +15,9 @@ const createdDirs: string[] = [];
 async function makeProjectCopy(): Promise<string> {
   const dir = await fs.mkdtemp(TMP_PREFIX);
   createdDirs.push(dir);
-  await fs.cp(DEMO, dir, { recursive: true });
+  // Skip any .ria/ a developer left behind by running the demo by hand —
+  // stale artifacts must never change what these tests see.
+  await fs.cp(DEMO, dir, { recursive: true, filter: (src) => !src.split(/[\\/]/).includes(".ria") });
   return dir;
 }
 

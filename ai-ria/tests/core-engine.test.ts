@@ -58,6 +58,14 @@ describe("memory engine (v0.1)", () => {
     expect(layers.working).toContain("Recent Memory Entries");
   });
 
+  it("does not store the same memory twice", async () => {
+    const before = (await loadMemories(root)).length;
+    const first = await addMemory(root, { type: "decision", title: "Use pnpm", content: "Lockfile already committed" });
+    const second = await addMemory(root, { type: "decision", title: "Use pnpm", content: "Lockfile already committed" });
+    expect(second.id).toBe(first.id);
+    expect((await loadMemories(root)).length).toBe(before + 1);
+  });
+
   it("compresses a conversation into a summary", async () => {
     const conv = path.join(root, "conversation.txt");
     await fs.writeFile(conv, [
@@ -72,6 +80,35 @@ describe("memory engine (v0.1)", () => {
     expect(summary.changedFiles).toContain("payment.js");
     const md = conversationSummaryToMarkdown(summary);
     expect(md).toContain("Decisions");
+  });
+
+  it("shrinks a repetitive conversation instead of growing it", async () => {
+    const conv = path.join(root, "repetitive.txt");
+    const line = "Agent: We decided to use the design color token for component spacing, and it is done. Next step: avoid touching auth.ts security handling.";
+    await fs.writeFile(conv, Array.from({ length: 60 }, (_, i) => `${line} (${i})`).join("\n"), "utf8");
+    const summary = await compressConversation(conv);
+    expect(summary.compressedTokenEstimate).toBeLessThan(summary.rawTokenEstimate);
+    expect(summary.compressionRatio).toBeLessThan(1);
+    // Near-identical restatements collapse to a single entry…
+    const buckets = [summary.decisions, summary.completedTasks, summary.remainingTasks, summary.warnings, summary.designRules, summary.securityNotes, summary.nextActions];
+    expect(buckets.reduce((n, b) => n + b.length, 0)).toBe(1);
+    // …and no line is repeated across categories.
+    expect(buckets.filter((b) => b.length > 0).length).toBe(1);
+  });
+
+  it("honors explicit labels over keywords found later in the line", async () => {
+    const conv = path.join(root, "labeled.txt");
+    await fs.writeFile(conv, [
+      "Design rule: the spacing scale stays at 4px, do not introduce 5px steps.",
+      "Security note: rotate the demo credentials before release.",
+      "User: what is done so far?",
+    ].join("\n"), "utf8");
+    const summary = await compressConversation(conv);
+    expect(summary.designRules).toHaveLength(1);
+    expect(summary.warnings).toHaveLength(0);
+    expect(summary.securityNotes).toHaveLength(1);
+    // Unlabeled questions are chatter, not knowledge.
+    expect(summary.completedTasks).toHaveLength(0);
   });
 });
 

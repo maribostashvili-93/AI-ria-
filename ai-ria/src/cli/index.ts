@@ -32,6 +32,7 @@ import { fmt } from "../tokens/token-estimator.js";
 import { writeUiPlan, suggestDesign, agentBudgetSummary } from "../planning/ui-planner.js";
 import { orchestrate } from "../orchestration/orchestrator.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
+import { VERSION } from "../core/version.js";
 import { toJson } from "../output/json.js";
 import { repoMapToMarkdown, contextPackToMarkdown, securityToMarkdown, skillsToMarkdown } from "../output/markdown.js";
 import { FigmaTokensSchema } from "../core/types.js";
@@ -43,12 +44,18 @@ program
   .description(
     "AI RIA - Git for AI context and memory.\nEnters an existing project, compresses context, keeps agent memory,\nbuilds handoffs and agent packs so the next AI agent starts informed.\nOutputs land in <path>/.ria/",
   )
-  .version("0.2.0");
+  .version(VERSION);
 
 const done = (files: string[], extra = "") => {
   console.log(`Wrote:\n${files.map((f) => `  ${f}`).join("\n")}${extra ? `\n${extra}` : ""}`);
 };
 const csv = (v?: string) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
+
+/** `ria security --fail-on <severity>`: which findings make the command exit 1. */
+const FAIL_ON_LEVELS = ["critical", "high", "medium", "low", "info", "none"];
+const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+const shouldFail = (findings: { severity: string }[], failOn: string) =>
+  failOn !== "none" && findings.some((f) => SEVERITY_RANK[f.severity] <= SEVERITY_RANK[failOn]);
 
 // ------------------------- repo intelligence -------------------------
 
@@ -70,9 +77,11 @@ program
   .description("Repo brain - generates the COMPLETE .ria/ knowledge folder in one run")
   .argument("[path]", "repository path", ".")
   .action(async (path: string) => {
+    // One disk scan feeds design, security and compression — they used to
+    // rescan the whole repo independently.
     const map = await scanRepo(path);
-    const design = await analyzeDesign(path);
-    const security = await scanSecurity(path);
+    const design = await analyzeDesign(path, map);
+    const security = await scanSecurity(path, { map });
     const pack = await buildContextPack(path, map);
     const files = [
       await writeRiaFile(path, "repo-map.json", toJson(map)),
@@ -359,7 +368,7 @@ const designCmd = program
   .option("--json", "also print the token report as JSON")
   .action(async (path: string, opts: { json?: boolean }) => {
     const map = await scanRepo(path);
-    const report = await analyzeDesign(path);
+    const report = await analyzeDesign(path, map);
     const f1 = await writeRiaFile(path, "DESIGN.md", generateDesignMd(report, map));
     done([f1], `  tokens=${report.tokenCount}, tailwind=${report.hasTailwindConfig}`);
     if (opts.json) console.log(toJson(report));
@@ -536,15 +545,24 @@ program
   .description("v0.3 - security brain -> .ria/SECURITY_REPORT.md + .ria/security-report.json (scan only, never executes)")
   .argument("[path]", "repository path", ".")
   .option("--json", "also print the report as JSON")
-  .action(async (path: string, opts: { json?: boolean }) => {
-    const report = await scanSecurity(path);
+  .option("--fail-on <severity>", `exit 1 at or above this severity: ${FAIL_ON_LEVELS.join(" | ")}`, "high")
+  .option("--include-fixtures", "also scan tests/, examples/ and *.test.* files (noisy by design)")
+  .option("--exclude <patterns>", "extra comma-separated path patterns to skip")
+  .action(async (path: string, opts: { json?: boolean; failOn: string; includeFixtures?: boolean; exclude?: string }) => {
+    if (!FAIL_ON_LEVELS.includes(opts.failOn)) {
+      console.error(`Unknown --fail-on "${opts.failOn}". Use: ${FAIL_ON_LEVELS.join(", ")}.`);
+      process.exitCode = 1;
+      return;
+    }
+    const report = await scanSecurity(path, {
+      includeFixtures: opts.includeFixtures,
+      exclude: csv(opts.exclude).map((p) => new RegExp(p, "i")),
+    });
     const f1 = await writeRiaFile(path, "SECURITY_REPORT.md", securityToMarkdown(report));
     const f2 = await writeRiaFile(path, "security-report.json", toJson(report));
-    done([f1, f2], `  findings=${report.findings.length}`);
+    done([f1, f2], `  findings=${report.findings.length}${opts.includeFixtures ? "" : " (fixtures excluded)"}`);
     if (opts.json) console.log(toJson(report));
-    if (report.findings.some((f) => f.severity === "critical" || f.severity === "high")) {
-      process.exitCode = 1;
-    }
+    if (shouldFail(report.findings, opts.failOn)) process.exitCode = 1;
   });
 
 program
@@ -554,7 +572,7 @@ program
   .option("--preview", "generate preview only (default and only mode)", true)
   .action(async (path: string) => {
     const map = await scanRepo(path);
-    const design = await analyzeDesign(path);
+    const design = await analyzeDesign(path, map);
     const rawFigma = await readRiaFile(path, "figma-tokens.json");
     const figmaTokens = rawFigma ? FigmaTokensSchema.parse(JSON.parse(rawFigma)) : null;
     const suggestions = await buildUiFixSuggestions(map, design, figmaTokens);

@@ -94,13 +94,27 @@ function normalizeMemoryType(type?: string): MemoryType {
   }
 }
 
-/** Append one memory entry to memories.jsonl, then refresh the index. */
+/**
+ * Content-addressed memory id. `createdAt` is deliberately NOT part of the
+ * hash: the same decision saved twice must collapse to one entry instead of
+ * flooding the pack every time a conversation is re-compressed.
+ */
+function memoryId(type: MemoryType, title: string, content: string): string {
+  return `mem_${createHash("sha256").update(`${type}|${title.trim()}|${content.trim()}`).digest("hex").slice(0, 10)}`;
+}
+
+/**
+ * Append one memory entry to memories.jsonl, then refresh the index.
+ * An entry whose type+title+content already exists is returned unchanged.
+ */
 export async function addMemory(root: string, input: AddMemoryInput): Promise<MemoryEntry> {
   const createdAt = new Date().toISOString();
-  const hash = createHash("sha256").update(`${input.title}|${input.content ?? ""}|${createdAt}`).digest("hex").slice(0, 10);
   const type = normalizeMemoryType(input.type);
+  const hashId = memoryId(type, input.title, input.content ?? "");
+  const existing = (await loadMemories(root)).find((e) => e.id === hashId);
+  if (existing) return existing;
   const entry = MemoryEntrySchema.parse({
-    id: `mem_${hash}`,
+    id: hashId,
     type,
     title: input.title,
     content: input.content ?? "",
