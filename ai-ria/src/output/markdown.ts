@@ -4,6 +4,32 @@ function sortDesc(record: Record<string, number>): [string, number][] {
   return Object.entries(record).sort((a, b) => b[1] - a[1]);
 }
 
+/**
+ * Push every heading in a document down by `by` levels, capped at h6.
+ *
+ * Packs embed whole generated documents inside their own sections. Without
+ * this, a pack is a flat run of `#` headings and an agent cannot tell the
+ * section title from the content it contains. Fenced code blocks are left
+ * alone — the packs quote markdown and shell snippets that start with `#`.
+ */
+export function demoteHeadings(markdown: string, by = 1): string {
+  let inFence = false;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      const heading = /^(#{1,6})(\s+\S)/.exec(line);
+      if (!heading) return line;
+      const level = Math.min(heading[1].length + by, 6);
+      return "#".repeat(level) + line.slice(heading[1].length);
+    })
+    .join("\n");
+}
+
 /** .ria/repo-summary.md */
 export function repoMapToMarkdown(map: RepoMap): string {
   const out: string[] = [];

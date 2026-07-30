@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { demoteHeadings } from "../src/output/markdown.js";
 import path from "node:path";
 import { scanRepo } from "../src/repo/scanner.js";
 import { compressRepoMap, buildContextPack, estimateTokens } from "../src/compression/compressor.js";
@@ -40,5 +41,20 @@ describe("buildContextPack (v0.1)", () => {
     const paths = pack.files.map((f) => f.path);
     expect(new Set(paths).size).toBe(paths.length);
     expect(pack.files.length).toBeLessThanOrEqual(30);
+  });
+});
+
+describe("demoteHeadings", () => {
+  it("pushes headings down and caps at h6", () => {
+    expect(demoteHeadings("# A\n## B\n###### F", 2)).toBe("### A\n#### B\n###### F");
+  });
+
+  it("leaves headings inside fenced code blocks alone", () => {
+    const md = ["# Title", "```", "# not a heading", "```", "## After"].join("\n");
+    expect(demoteHeadings(md, 1)).toBe(["## Title", "```", "# not a heading", "```", "### After"].join("\n"));
+  });
+
+  it("ignores lines that only look like headings", () => {
+    expect(demoteHeadings("#nospace\n#", 1)).toBe("#nospace\n#");
   });
 });

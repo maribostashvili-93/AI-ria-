@@ -1,4 +1,5 @@
 import { readRiaFile, writeRiaFile } from "../core/paths.js";
+import { demoteHeadings } from "../output/markdown.js";
 import { estimateTokens } from "../compression/tokenizer.js";
 import { compressMemories } from "../memory/memory-compressor.js";
 import { loadHandoff, handoffToMarkdown } from "../memory/memory-handoff.js";
@@ -93,7 +94,8 @@ export function agentPackToMarkdown(data: AgentPackData): string {
     "",
   ];
   for (const s of [...data.sections].sort((a, b) => a.priority - b.priority)) {
-    lines.push(`# ${s.name}`, "", s.content, "", "---", "");
+    // Section titles are h2; the document embedded under them starts at h3.
+    lines.push(`## ${s.name}`, "", demoteHeadings(s.content, 2), "", "---", "");
   }
   if (data.missing.length) {
     lines.push("## Missing Inputs", "", ...data.missing.map((m) => `- ${m}`), "");

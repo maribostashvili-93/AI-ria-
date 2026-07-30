@@ -32,6 +32,7 @@ import { fmt } from "../tokens/token-estimator.js";
 import { writeUiPlan, suggestDesign, agentBudgetSummary } from "../planning/ui-planner.js";
 import { orchestrate } from "../orchestration/orchestrator.js";
 import { writeRiaFile, readRiaFile } from "../core/paths.js";
+import { normalizeArgv } from "../core/argv.js";
 import { VERSION } from "../core/version.js";
 import { toJson } from "../output/json.js";
 import { repoMapToMarkdown, contextPackToMarkdown, securityToMarkdown, skillsToMarkdown } from "../output/markdown.js";
@@ -764,7 +765,7 @@ tokensCmd
     console.log(await comparePacks(path));
   });
 
-program.parseAsync(process.argv).catch((err: unknown) => {
+program.parseAsync(normalizeArgv(process.argv)).catch((err: unknown) => {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });

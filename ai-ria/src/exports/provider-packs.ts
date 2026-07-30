@@ -1,5 +1,6 @@
 import { writeRiaFile } from "../core/paths.js";
 import { estimateTokens, trimToBudget } from "../compression/tokenizer.js";
+import { demoteHeadings } from "../output/markdown.js";
 import { collectAgentPack } from "../agentpack/agent-pack.js";
 
 export type Provider = "claude" | "cursor" | "codex" | "compact" | "visual" | "security";
@@ -109,7 +110,7 @@ export async function buildProviderPack(root: string, provider: Provider): Promi
   const removedSections: string[] = [];
 
   for (const s of ordered) {
-    const block = `# ${s.name}\n\n${s.content}\n\n---\n\n`;
+    const block = `## ${s.name}\n\n${demoteHeadings(s.content, 2)}\n\n---\n\n`;
     const cost = estimateTokens(block);
     if (used + cost <= profile.budget) {
       included.push(block);

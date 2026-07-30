@@ -33,6 +33,17 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the pages — reported zero routes and had its plan invented from a template.
   Root-level HTML files are now routes; asset folders, partials, fixtures and
   deeply nested HTML are excluded.
+- **`pnpm run ria -- <args>` no longer fails.** npm strips the `--` separator
+  before handing arguments to a script; pnpm forwards it as a literal first
+  argument, so every command with a required option died with
+  "required option '--title <title>' not specified" — including the
+  `memory add` call the README told people to run. A leading `--` is now
+  dropped, so both package managers behave the same.
+- **Packs nest their sections properly.** `AGENT_PACK.md` and the provider packs
+  embed whole generated documents, and every one of them started at `#`, so the
+  pack was a flat run of h1s with no way to tell a section title from its
+  content. Sections are h2 now and embedded documents are pushed below them;
+  headings inside fenced code blocks are left alone.
 - **SQL files are scanned for secrets.** Migrations and schema dumps carry role
   passwords and connection strings and are committed more often than app config,
   but `.sql` was not in the scannable set. Two rules were added:

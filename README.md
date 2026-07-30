@@ -9,7 +9,7 @@
     <a href="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml"><img src="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
-    <img src="https://img.shields.io/badge/tests-129%20passing-brightgreen" alt="129 tests" />
+    <img src="https://img.shields.io/badge/tests-136%20passing-brightgreen" alt="136 tests" />
   </p>
 
   <p>
@@ -73,10 +73,10 @@ cd AI-ria-/ai-ria
 pnpm install
 ```
 
-Point it at a project:
+Try it on the bundled demo first — it takes a few seconds:
 
 ```bash
-pnpm run ria -- analyze ./examples/demo-app
+pnpm ria analyze ./examples/demo-app
 ```
 
 ```text
@@ -92,31 +92,149 @@ Checklist:
 
 *(The demo app ships intentional vulnerabilities so the scanner has something to
 find. On a clean repository it reports nothing — see [Real examples](#real-examples)
-for numbers from a 2,280-file project.)*
+for measured numbers from two projects.)*
 
-Then run the agent workflow on your own project:
+---
+
+## How to use it
+
+AI RIA runs **beside** your agent, not inside it. You run a CLI command, it
+writes files into your project's `.ria/` folder, and then you tell your agent to
+read one of them. That is the whole loop.
+
+> **Where do commands run from?** Everything below runs from inside the `ai-ria`
+> folder, with a path to *your* project:
+>
+> ```bash
+> pnpm ria <args>        # pnpm
+> npm run ria -- <args>  # npm
+> ```
+>
+> Or build once and call the CLI from anywhere:
+>
+> ```bash
+> pnpm build && node dist/cli/index.js <args>
+> ```
+
+### Step 1 — Analyze the project once
 
 ```bash
-pnpm run ria -- analyze ../my-project
-pnpm run ria -- context build ../my-project
-pnpm run ria -- memory add ../my-project --title "Keep the shared layout" --type decision
-pnpm run ria -- handoff create ../my-project --task "Refactor header" --remaining "Responsive pass"
-pnpm run ria -- agent-pack ../my-project
+pnpm ria analyze /path/to/my-project
 ```
 
-Now tell your agent:
+This writes the whole `.ria/` knowledge folder: architecture, features, design
+tokens, a compressed context pack, and a security report. Re-run it whenever the
+project has changed a lot — it is cheap and always overwrites.
+
+### Step 2 — Build the file your agent will read
+
+```bash
+pnpm ria agent-pack /path/to/my-project
+```
+
+This produces **`.ria/agent-pack/AGENT_PACK.md`** — one file combining the
+compressed context, project memory, the latest handoff, design rules and
+security warnings.
+
+### Step 3 — Point your agent at it
+
+Paste this as your first message in Claude Code, Cursor, Codex or any other
+agent:
 
 ```text
-Read .ria/agent-pack/AGENT_PACK.md before editing anything.
+Read .ria/agent-pack/AGENT_PACK.md before you touch any code.
+Follow the design rules and security warnings in it.
+If you need more detail, read .ria/memory/working-memory.md
+and .ria/context/context-pack.md — do not scan the whole repo.
 ```
 
-If it needs more, `.ria/memory/working-memory.md` and
-`.ria/memory/deep-memory.md` are next.
+That is the payoff: the agent starts informed for ~2–3k tokens instead of
+reading the repository.
+
+### Step 4 — Record decisions as you work
+
+Whenever something is decided, save it. This is what survives to the next
+session and the next agent:
+
+```bash
+pnpm ria memory add /path/to/my-project \
+  --title "Keep Bootstrap instead of migrating to Tailwind" \
+  --content "Migration cost is not worth it before launch" \
+  --type decision
+
+pnpm ria memory add /path/to/my-project \
+  --title "Do not edit payment.js without a security review" \
+  --type warning --files payment.js
+```
+
+Types: `decision` · `task` · `design-rule` · `architecture-note` · `warning` ·
+`security-note` · `figma-note`.
+
+Already have a long agent conversation? Distill it in one command:
+
+```bash
+pnpm ria memory compress-conversation /path/to/my-project ./conversation.txt
+```
+
+### Step 5 — Hand off before you stop
+
+```bash
+pnpm ria handoff create /path/to/my-project \
+  --task "Refactor the header" \
+  --completed "Navbar cleanup" \
+  --remaining "Responsive pass" \
+  --avoid payment.js \
+  --next-action "Start from components/Header.tsx"
+```
+
+### Step 6 — Next session, rebuild the pack and repeat
+
+```bash
+pnpm ria agent-pack /path/to/my-project
+```
+
+The new pack now carries the memory and the handoff, so the next agent resumes
+instead of restarting.
+
+### The short version
+
+```bash
+ria analyze <project>      # 1. understand the project
+ria agent-pack <project>   # 2. build the file the agent reads
+#    → tell the agent: "Read .ria/agent-pack/AGENT_PACK.md first"
+ria memory add <project> --title "..." --type decision   # 3. as you work
+ria handoff create <project> --task "..."                # 4. before you stop
+ria agent-pack <project>   # 5. rebuild, next agent resumes
+```
+
+### Which file does what
+
+| File | Read it when |
+| --- | --- |
+| `.ria/agent-pack/AGENT_PACK.md` | **Always first.** Everything an agent needs to start |
+| `.ria/exports/CLAUDE_CONTEXT.md` (or `CURSOR_`, `CODEX_`, `COMPACT_`) | You want the same knowledge trimmed to one agent's token budget |
+| `.ria/memory/working-memory.md` | You need the active task state |
+| `.ria/memory/deep-memory.md` | You need the full decision history |
+| `.ria/context/context-pack.md` | You need file-level detail without reading the repo |
+| `.ria/DESIGN.md` | You are changing UI — tokens, rules, and any conflicts |
+| `.ria/SECURITY_REPORT.md` | Before merging, or in CI |
+| `.ria/handoffs/HANDOFF.md` | You are picking up someone else's work |
+
+### In CI
+
+`ria security` exits non-zero at or above the severity you choose, so it can
+gate a pull request:
+
+```bash
+ria security . --fail-on high
+```
+
+---
 
 ### One command for a whole goal
 
 ```bash
-pnpm run ria -- orchestrate ../my-project --goal "Build the dashboard UI from Figma"
+pnpm ria orchestrate ../my-project --goal "Build the dashboard UI from Figma"
 ```
 
 Plans the work, routes it across agents, and builds exactly the packs those
@@ -166,7 +284,7 @@ came from, so it can be argued with.
 ### See it
 
 ```bash
-pnpm run ria -- studio ../my-project
+pnpm ria studio ../my-project
 # AI RIA Studio running at http://localhost:3333
 ```
 
@@ -363,7 +481,7 @@ See [Roadmap](./docs/Roadmap.md) for where it goes next.
 ```bash
 cd ai-ria
 pnpm install
-pnpm run verify      # typecheck + lint + 129 tests
+pnpm run verify      # typecheck + lint + 136 tests
 pnpm run build
 ```
 

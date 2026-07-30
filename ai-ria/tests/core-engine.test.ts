@@ -199,6 +199,15 @@ describe("agent pack + provider exports (v0.1)", () => {
     expect(md).toContain("Improve checkout");
   });
 
+  it("nests embedded documents under their section heading", async () => {
+    const md = await fs.readFile(path.join(root, ".ria", "agent-pack", "AGENT_PACK.md"), "utf8");
+    const headings = md.split("\n").filter((l) => /^#{1,6}\s/.test(l));
+    // exactly one h1 (the pack title); sections are h2; embedded docs go deeper
+    expect(headings.filter((h) => /^#\s/.test(h))).toEqual(["# AGENT PACK"]);
+    expect(headings.some((h) => /^##\s/.test(h))).toBe(true);
+    expect(headings.some((h) => /^###\s/.test(h))).toBe(true);
+  });
+
   it("builds provider packs within budget and reports removals", async () => {
     const compact = await buildProviderPack(root, "compact");
     expect(compact.tokens).toBeLessThanOrEqual(compact.budget + 200);
