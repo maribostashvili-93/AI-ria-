@@ -49,9 +49,15 @@ your-project/
 | **Agent pack** | `AGENT_PACK.md` — the single file the next agent reads before editing |
 | **Provider packs** | The same knowledge at each agent's token budget (Claude 12k, Cursor 8k, Codex 6k, compact 2.5k), always stating what was dropped |
 | **Figma bridge** | Design tokens from the Figma API *or* from plugin/MCP exports with no token at all |
-| **Security intelligence** | Secrets, unsafe commands, prompt injection in agent-instruction files — report only, never executed |
+| **Security intelligence** | Secrets, unsafe commands, credentials in SQL migrations and connection URLs, prompt injection in agent-instruction files — report only, never executed |
 | **Project inference** | Plans are derived from the repo — routes, components, design tokens, and the stack it already commits to — turned into rules, with the source of every part recorded |
 | **Studio** | A local dashboard over `.ria/`: memory graph, routing, tokens, security, handoffs |
+
+It reads framework projects (Next.js, Nuxt, Astro, Vue, Svelte, React) and plain
+multi-page sites alike — for a site whose pages are `index.html`, `admin.html`
+and `login.html`, those *are* the routes. Design tokens are read straight from
+the stylesheets, minified or not, and `DESIGN.md` flags any token defined twice
+with different values instead of silently picking one.
 
 Everything is deterministic. **AI RIA makes no LLM calls** — no API key, no
 inference cost, no non-reproducible output. It is static analysis plus
@@ -85,7 +91,7 @@ Checklist:
 ```
 
 *(The demo app ships intentional vulnerabilities so the scanner has something to
-find. On a clean repository it reports nothing — see [Real example](#real-example)
+find. On a clean repository it reports nothing — see [Real examples](#real-examples)
 for numbers from a 2,280-file project.)*
 
 Then run the agent workflow on your own project:
@@ -265,7 +271,36 @@ ria figma to-design-md ./my-project
 ria agent-pack ./my-project
 ```
 
-## Real example
+## Real examples
+
+### A small multi-page app
+
+`pitforge` — a 19-file Vite + Supabase SEO auditor whose pages are plain HTML
+(last run 2026-07-30):
+
+```bash
+ria analyze "…/pitforge"
+ria memory add "…/pitforge" --title "…" --type design-rule
+ria handoff create "…/pitforge" --task "Improve the SEO audit dashboard UI"
+ria orchestrate "…/pitforge" --goal "Improve the dashboard UI and harden the auth flow"
+ria agent-pack "…/pitforge"
+```
+
+| Metric | Result |
+| --- | --- |
+| Files / lines | `19` / `4728` |
+| Routes | `/`, `/admin`, `/login` — read from the HTML pages |
+| Design tokens | `22`, plus one conflict flagged (`--line` differs across two stylesheets) |
+| Security findings | `0` — `--fail-on high` exits `0`, so it can gate CI |
+| Context pack | `~6340` tokens vs `~49279` raw (ratio `0.13`) |
+| Plan sources | pages = repository routes · palette = project design tokens · stack = Supabase |
+| `AGENT_PACK.md` | `~2556` tokens, 6 sections |
+| `ria analyze` runtime | `~3.8s` |
+
+A small project compresses less — there is less redundancy to remove — and the
+plan leans on the repository rather than a template, which is the point.
+
+### A large multi-project folder
 
 Run against a real 2,280-file project (`app Hot post`, last run 2026-07-29):
 
@@ -316,8 +351,9 @@ Known limits, stated plainly:
   e-commerce, SaaS dashboard, landing, finance) chosen by keyword — a useful
   scaffold, but a scaffold. Every plan states which parts came from which.
 - **Token counts are estimates**, not tokenizer output.
-- **Security rules are regex-based** — good for secrets, unsafe commands and
-  prompt injection in agent files; not a replacement for a real SAST tool.
+- **Security rules are regex-based** — good for secrets, unsafe commands,
+  credentials in SQL and connection URLs, and prompt injection in agent files;
+  not a replacement for a real SAST tool. It reports, it never executes.
 - Not yet published to npm; install from source.
 
 See [Roadmap](./docs/Roadmap.md) for where it goes next.
