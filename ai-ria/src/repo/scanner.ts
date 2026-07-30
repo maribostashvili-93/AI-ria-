@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { RepoMap, RepoMapSchema, FileInfo, Conventions, Framework } from "../core/types.js";
+import { isFixturePath } from "../core/fixtures.js";
 
 const IGNORE_DIRS = new Set([
   "node_modules", ".git", "dist", "build", ".next", "coverage",
@@ -112,16 +113,41 @@ export function detectFramework(deps: string[], files: FileInfo[]): Framework {
 
 const ROUTE_DIRS = ["pages/", "app/", "src/pages/", "src/app/", "src/routes/"];
 
+/** Directories that hold assets, not pages, even when they contain HTML. */
+const NON_PAGE_DIRS = /^(public|static|assets|docs?\/assets)\//i;
+/** HTML that is a piece of a page rather than a page (`_partials/`, `x.partial.html`). */
+const HTML_PARTIAL = /(^|[/\-_.])_?(partial|fragment|include|snippet|template)s?([/\-_.]|$)/i;
+/** `index.html` at the root is a page; `vendor/lib/demo/x.html` is not. */
+const MAX_HTML_ROUTE_DEPTH = 2;
+
+const normalize = (rel: string) => "/" + rel.replace(/\\/g, "/").replace(/\/+$/, "").replace(/^\/+/, "");
+
+/**
+ * Routes of a project.
+ *
+ * Framework projects declare them in a routes directory. Multi-page sites —
+ * plain HTML, Vite MPA, static builders — declare them as HTML files instead:
+ * `index.html`, `admin.html`, `login.html` *are* the pages, and ignoring them
+ * left those projects reporting zero routes.
+ */
 export function detectRoutes(files: FileInfo[]): string[] {
   const routes = new Set<string>();
   for (const f of files) {
+    if (isFixturePath(f.path)) continue;
     const dir = ROUTE_DIRS.find((d) => f.path.startsWith(d));
     if (!dir) continue;
     if (![".tsx", ".jsx", ".ts", ".js", ".vue", ".svelte", ".astro", ".html"].includes(f.ext)) continue;
     if (/(layout|loading|error|_app|_document|\.test\.|\.spec\.)/.test(f.path)) continue;
-    let rel = f.path.slice(dir.length).replace(/\.[a-z]+$/, "");
-    rel = rel.replace(/\/?(index|page)$/, "");
-    routes.add("/" + rel.replace(/\\/g, "/").replace(/\/+$/, "").replace(/^\/+/, ""));
+    const rel = f.path.slice(dir.length).replace(/\.[a-z]+$/, "").replace(/\/?(index|page)$/, "");
+    routes.add(normalize(rel));
+  }
+
+  for (const f of files) {
+    if (f.ext !== ".html" || isFixturePath(f.path)) continue;
+    if (NON_PAGE_DIRS.test(f.path) || HTML_PARTIAL.test(f.path)) continue;
+    if (f.path.split("/").length > MAX_HTML_ROUTE_DEPTH) continue;
+    if (ROUTE_DIRS.some((d) => f.path.startsWith(d))) continue; // already handled above
+    routes.add(normalize(f.path.replace(/\.html$/i, "").replace(/(^|\/)index$/, "")));
   }
   return [...routes].sort();
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
-import { scanRepo } from "../src/repo/scanner.js";
+import { scanRepo, detectRoutes } from "../src/repo/scanner.js";
+import type { FileInfo } from "../src/core/types.js";
+
+const file = (p: string): FileInfo => ({ path: p, ext: path.extname(p), bytes: 100, lines: 10 });
 
 const SAMPLE = path.join(__dirname, "..", "examples", "sample-app");
 const DEMO = path.join(__dirname, "..", "examples", "demo-app");
@@ -19,6 +22,33 @@ describe("scanRepo (sample-app)", () => {
     expect(map.conventions.usesTypeScript).toBe(true);
     expect(map.conventions.hasSrcLayout).toBe(true);
     expect(map.conventions.hasDesignDoc).toBe(true);
+  });
+});
+
+describe("detectRoutes", () => {
+  it("treats the pages of a multi-page HTML site as routes", () => {
+    const routes = detectRoutes([
+      file("index.html"), file("admin.html"), file("login.html"),
+      file("styles.css"), file("src/main.jsx"),
+    ]);
+    expect(routes).toEqual(["/", "/admin", "/login"]);
+  });
+
+  it("ignores asset folders, partials, fixtures and deep HTML", () => {
+    const routes = detectRoutes([
+      file("index.html"),
+      file("public/favicon.html"),
+      file("_partials/header.html"),
+      file("test/fixtures/demo/page.html"),
+      file("vendor/lib/docs/example.html"),
+      file("a/b/c/deep.html"),
+    ]);
+    expect(routes).toEqual(["/"]);
+  });
+
+  it("still reads framework routes and does not duplicate the index", () => {
+    const routes = detectRoutes([file("pages/index.tsx"), file("pages/about.tsx"), file("index.html")]);
+    expect(routes).toEqual(["/", "/about"]);
   });
 });
 

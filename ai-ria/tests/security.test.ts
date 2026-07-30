@@ -25,6 +25,29 @@ describe("scanContent", () => {
   it("is quiet on clean code", () => {
     expect(scanContent("x.ts", `export const add = (a: number, b: number) => a + b;`)).toHaveLength(0);
   });
+
+  it("detects credentials in SQL migrations and connection URLs", () => {
+    expect(scanContent("schema.sql", `create role app with login password 'sup3rs3cret';`)
+      .some((f) => f.rule === "sql-role-password")).toBe(true);
+    expect(scanContent("db.ts", `const url = "postgres://admin:hunter2@db.example.com:5432/app";`)
+      .some((f) => f.rule === "connection-string-credentials")).toBe(true);
+  });
+
+  it("does not flag a clean Supabase-style schema", () => {
+    const schema = [
+      "alter table public.projects enable row level security;",
+      `create policy "Users can read own projects" on public.projects for select using (auth.uid() = user_id);`,
+      "create index if not exists projects_user_id_idx on public.projects(user_id);",
+    ].join("\n");
+    expect(scanContent("supabase-schema.sql", schema)).toHaveLength(0);
+  });
+
+  it("does not flag credential-free URLs", () => {
+    expect(scanContent("a.ts", `const u = "https://api.example.com/v1/items";`)
+      .some((f) => f.rule === "connection-string-credentials")).toBe(false);
+    expect(scanContent("a.ts", `const u = "git+https://github.com/owner/repo.git";`)
+      .some((f) => f.rule === "connection-string-credentials")).toBe(false);
+  });
 });
 
 describe("scanAgentFile (prompt injection)", () => {

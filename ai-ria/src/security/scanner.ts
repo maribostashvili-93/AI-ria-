@@ -21,6 +21,8 @@ export const RULES: Rule[] = [
   { id: "curl-pipe-shell", severity: "critical", pattern: /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z)?sh\b/, message: "Remote script piped into a shell — supply-chain risk" },
   { id: "dangerous-rm", severity: "high", pattern: /\brm\s+-rf\s+(?:\/(?!tmp)|~|\$HOME)/, message: "Destructive rm -rf on home or filesystem root" },
   { id: "world-writable-chmod", severity: "medium", pattern: /\bchmod\s+(?:-R\s+)?777\b/, message: "chmod 777 — world-writable permissions" }, // ria-security-ignore
+  { id: "sql-role-password", severity: "critical", pattern: /\b(?:encrypted\s+)?password\s+'[^']{6,}'/i, message: "Database role password in a SQL file — rotate it and move it to a secret store" },
+  { id: "connection-string-credentials", severity: "critical", pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/'"]+:[^\s@/'"]+@/i, message: "Credentials embedded in a connection URL — move them to environment variables" },
 ];
 
 /** Prompt-injection patterns checked only in agent-instruction files. */
@@ -36,6 +38,9 @@ const AGENT_FILES = /(^|\/)(AGENTS?\.md|CLAUDE\.md|\.cursorrules|copilot-instruc
 const SCANNABLE_EXTS = new Set([
   ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json",
   ".yml", ".yaml", ".sh", ".py", ".rb", ".go", ".rs",
+  // Migrations and schema dumps routinely carry role passwords and connection
+  // strings, and they are committed far more often than application config.
+  ".sql",
 ]);
 
 /**

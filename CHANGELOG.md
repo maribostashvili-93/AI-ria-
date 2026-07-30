@@ -27,6 +27,17 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   under "Do Not Change" in the generated `DESIGN.md`.
 - Dependencies are collected from nested manifests, so monorepos and folders
   with no root `package.json` are covered.
+- **Multi-page HTML sites now report their pages.** Routes were only read from a
+  framework routes directory (`pages/`, `app/`, `src/routes/`), so a plain HTML
+  or Vite MPA project — where `index.html`, `admin.html` and `login.html` *are*
+  the pages — reported zero routes and had its plan invented from a template.
+  Root-level HTML files are now routes; asset folders, partials, fixtures and
+  deeply nested HTML are excluded.
+- **SQL files are scanned for secrets.** Migrations and schema dumps carry role
+  passwords and connection strings and are committed more often than app config,
+  but `.sql` was not in the scannable set. Two rules were added:
+  `sql-role-password` (`create role … password '…'`) and
+  `connection-string-credentials` (`postgres://user:pass@host`, any scheme).
 
 ### Changed
 
