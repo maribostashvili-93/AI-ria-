@@ -43,6 +43,17 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Design token extraction broke on minified CSS.** A custom property was read
+  up to the next `;`, but compact CSS omits the semicolon on the last
+  declaration in a block (`:root{--max:1240px}`), so the value swallowed every
+  following rule. `DESIGN.md` and `VISUAL_AGENT_PACK.md` then handed agents
+  tokens like `--muted: #706e65}*{box-sizing:border-box}html,body{margin:0` as
+  design guidance. Values now stop at the end of their block, empty values are
+  skipped, and a property redefined later in the same file keeps its first
+  definition.
+- Tokens defined in several stylesheets were listed once per file. `DESIGN.md`
+  now shows one row per token and adds a **Conflicting Definitions** section
+  when the same name carries different values in different files.
 - CI could not install: pnpm 11 requires Node >= 22.13 while the workflow pinned
   Node 20 to match `engines`. Now installs with pnpm 10 and runs the full verify
   across a Node 20 + 22 matrix, so the declared minimum is actually tested.

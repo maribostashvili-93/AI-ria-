@@ -86,7 +86,7 @@ After that, `your-project/.ria/` contains:
 └── summary.json           ← one machine-readable rollup
 ```
 
-`pnpm test` runs the Vitest suite (119 tests). `pnpm dev <command>` runs the CLI without building.
+`pnpm test` runs the Vitest suite (123 tests). `pnpm dev <command>` runs the CLI without building.
 
 ## Using It With Your AI Agent
 

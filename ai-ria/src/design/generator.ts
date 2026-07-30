@@ -2,6 +2,24 @@ import { DesignReport, DesignToken, RepoMap } from "../core/types.js";
 
 const COLOR_VALUE = /^(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|oklch\()/i;
 
+/** One row per token name. The first definition wins; the rest are conflicts. */
+export function dedupeTokens(tokens: DesignToken[]): { unique: DesignToken[]; conflicts: { name: string; definitions: DesignToken[] }[] } {
+  const byName = new Map<string, DesignToken[]>();
+  for (const t of tokens) {
+    const list = byName.get(t.name) ?? [];
+    list.push(t);
+    byName.set(t.name, list);
+  }
+  const unique: DesignToken[] = [];
+  const conflicts: { name: string; definitions: DesignToken[] }[] = [];
+  for (const [name, definitions] of byName) {
+    unique.push(definitions[0]);
+    const distinct = [...new Map(definitions.map((d) => [d.value, d])).values()];
+    if (distinct.length > 1) conflicts.push({ name, definitions: distinct });
+  }
+  return { unique, conflicts };
+}
+
 export function categorizeTokens(tokens: DesignToken[]): Record<string, DesignToken[]> {
   const cats: Record<string, DesignToken[]> = { colors: [], typography: [], spacing: [], radius: [], shadows: [], other: [] };
   for (const t of tokens) {
@@ -18,7 +36,8 @@ export function categorizeTokens(tokens: DesignToken[]): Record<string, DesignTo
 
 /** v0.2: generate .ria/DESIGN.md from detected tokens + components. */
 export function generateDesignMd(report: DesignReport, map: RepoMap): string {
-  const cats = categorizeTokens(report.tokens);
+  const { unique, conflicts } = dedupeTokens(report.tokens);
+  const cats = categorizeTokens(unique);
   const projectName = map.root.split(/[\\/]/).pop();
   const out: string[] = [];
   out.push(`# DESIGN.md — ${projectName}`, ``);
@@ -47,6 +66,17 @@ export function generateDesignMd(report: DesignReport, map: RepoMap): string {
   section("Border Radius", cats.radius, "Define `--radius-*` custom properties.");
   if (cats.shadows.length) section("Shadows", cats.shadows, "");
   if (cats.other.length) section("Other Tokens", cats.other, "");
+
+  if (conflicts.length) {
+    out.push(`## Conflicting Definitions`, ``);
+    out.push(`These tokens are defined more than once with different values. Agents should`);
+    out.push(`treat the first as authoritative and flag the rest rather than pick one.`, ``);
+    out.push(`| Token | Value | Defined in |`, `|---|---|---|`);
+    for (const c of conflicts) {
+      for (const d of c.definitions) out.push(`| \`${c.name}\` | \`${d.value}\` | ${d.source} |`);
+    }
+    out.push(``);
+  }
 
   out.push(`## Components`, ``);
   if (map.components.length) {

@@ -9,7 +9,7 @@
     <a href="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml"><img src="https://github.com/maribostashvili-93/AI-ria-/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
     <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
     <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
-    <img src="https://img.shields.io/badge/tests-119%20passing-brightgreen" alt="119 tests" />
+    <img src="https://img.shields.io/badge/tests-123%20passing-brightgreen" alt="123 tests" />
   </p>
 
   <p>
@@ -327,7 +327,7 @@ See [Roadmap](./docs/Roadmap.md) for where it goes next.
 ```bash
 cd ai-ria
 pnpm install
-pnpm run verify      # typecheck + lint + 119 tests
+pnpm run verify      # typecheck + lint + 123 tests
 pnpm run build
 ```
 
